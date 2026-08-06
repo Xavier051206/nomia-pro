@@ -8,7 +8,7 @@ function PanelMaestro() {
   const [totalAprobados, setTotalAprobados] = useState(0);
   const [logs, setLogs] = useState([]);
 
-  const backendUrl = 'https://nominapro.up.railway.app';
+  const backendUrl = 'https://nomia-pro-production.up.railway.app';
 
   useEffect(() => {
     cargarDatos();
