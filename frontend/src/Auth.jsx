@@ -7,8 +7,7 @@ function Auth({ onLoginSuccess }) {
   const [password, setPassword] = useState('');
   const [rolSolicitado, setRolSolicitado] = useState('asistente'); 
   const [cargando, setCargando] = useState(false);
-
-  const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://nomia-pro-production.up.railway.app';
+ const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://nominapro.up.railway.app';
 
   const handleLogin = async (e) => {
     e.preventDefault();
