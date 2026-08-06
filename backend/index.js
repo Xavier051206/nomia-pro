@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs'); 
 const jwt = require('jsonwebtoken');
+const cron = require('node-cron');
+const nodemailer = require('nodemailer');
 require('dotenv').config();
 
 const app = express();
@@ -213,7 +215,7 @@ app.put('/usuarios/revision/:id', verificarToken, async (req, res) => {
 });
 
 // =========================================================
-// 6. RUTAS DE EMPLEADOS (SOPORTE PAGINACIÓN Y EXPORTACIÓN MASIVA)
+// 6. RUTAS DE EMPLEADOS
 // =========================================================
 app.post('/empleados', verificarToken, async (req, res) => {
     try {
@@ -609,74 +611,94 @@ app.get('/corte-semanal/verificar', verificarToken, async (req, res) => {
     }
 });
 
-app.post('/corte-semanal/ejecutar', verificarToken, async (req, res) => {
+// Función reutilizable para el corte semanal
+const ejecutarCorteSemanal = async (usuario = 'Sistema Automático') => {
+    const client = await pool.connect();
     try {
-        await pool.query('BEGIN');
+        await client.query('BEGIN');
 
-        const activosRes = await pool.query("SELECT COUNT(*) FROM Empleado WHERE estado = 'Activo'");
-        const sancionadosRes = await pool.query("SELECT COUNT(*) FROM Empleado WHERE estado = 'Sancionado'");
+        const activosRes = await client.query("SELECT COUNT(*) FROM Empleado WHERE estado = 'Activo'");
+        const sancionadosRes = await client.query("SELECT COUNT(*) FROM Empleado WHERE estado = 'Sancionado'");
         
         const totalActivos = parseInt(activosRes.rows[0].count) || 0;
         const totalSancionados = parseInt(sancionadosRes.rows[0].count) || 0;
         const fechaHoy = new Date().toISOString().split('T')[0];
 
-        const insertRes = await pool.query(
+        const insertRes = await client.query(
             `INSERT INTO CorteSemanal (fecha_inicio, fecha_fin, total_activos, total_sancionados, porcentaje_asistencia, detalles) 
              VALUES ($1, $1, $2, $3, $4, $5) RETURNING *`,
-            [fechaHoy, totalActivos, totalSancionados, 0.00, 'Corte semanal y limpieza operativa por ' + req.usuario.username]
+            [fechaHoy, totalActivos, totalSancionados, 0.00, 'Corte semanal y limpieza operativa por ' + usuario]
         );
 
         try {
-            await pool.query('DELETE FROM Queja');
+            await client.query('DELETE FROM Queja');
         } catch (eQ) {
             console.log("Aviso: No se pudo vaciar la tabla Queja automáticamente:", eQ.message);
         }
 
-        await pool.query('COMMIT');
-        await registrarAuditoria(req.usuario.username, 'CORTE_SEMANAL_Y_LIMPIEZA', 'Se ejecutó el corte semanal, se respaldaron los datos y se limpió el panel para la próxima semana.');
+        await client.query('COMMIT');
+        await registrarAuditoria(usuario, 'CORTE_SEMANAL_Y_LIMPIEZA', 'Se ejecutó el corte semanal, se respaldaron los datos y se limpió el panel para la próxima semana.');
+        return insertRes.rows[0];
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
+};
 
+app.post('/corte-semanal/ejecutar', verificarToken, async (req, res) => {
+    try {
+        const resultadoCorte = await ejecutarCorteSemanal(req.usuario.username);
         res.json({ 
             mensaje: '¡Corte realizado con éxito! La data principal (empleados, sanciones y vetados) está a salvo, y el panel de reportes quedó limpio para el próximo lunes.',
-            datos: insertRes.rows[0]
+            datos: resultadoCorte
         });
     } catch (error) {
-        await pool.query('ROLLBACK');
         console.error("Error al ejecutar corte semanal:", error);
         res.status(500).json({ error: error.message });
     }
 });
-// ... (al final de tu index.js, antes del app.listen)
-const cron = require('node-cron');
 
-// Esta tarea corre todos los sábados a las 23:59 (11:59 PM)
-cron.schedule('59 23 * * 6', async () => {
-    console.log('⏰ Iniciando corte semanal automático...');
+// =========================================================
+// 11. CORREO Y CRON JOB AUTOMÁTICO (SÁBADOS A LAS 11:59 PM)
+// =========================================================
+const enviarCorreoReportes = async (archivos) => {
     try {
-        // Aquí llamas a la lógica que ya tienes en app.post('/corte-semanal/ejecutar')
-        // O mejor aún: encapsulamos esa lógica en una función reutilizable:
-        await ejecutarCorteSemanal();
-        console.log('✅ Corte semanal ejecutado con éxito.');
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: process.env.EMAIL_USER || 'tu_correo@gmail.com', 
+                pass: process.env.EMAIL_PASS || 'tu_contraseña_de_aplicacion'
+            }
+        });
+
+        await transporter.sendMail({
+            from: '"Sistema NóminaPro" <tu_correo@gmail.com>',
+            to: process.env.EMAIL_TO || 'tu_correo@gmail.com',
+            subject: 'Corte Semanal Automático - NóminaPro',
+            text: 'Adjunto los reportes del corte semanal automático.',
+            attachments: archivos || []
+        });
+        console.log('📧 Correo de reporte enviado con éxito.');
+    } catch (error) {
+        console.error('❌ Error enviando correo automático:', error);
+    }
+};
+
+// Cron programado para todos los sábados a las 11:59 PM -> '59 23 * * 6'
+cron.schedule('59 23 * * 6', async () => {
+    console.log('⏰ Iniciando corte semanal automático de las 11:59 PM...');
+    try {
+        const resultadoCorte = await ejecutarCorteSemanal('Cron Automático 11:59PM');
+        await enviarCorreoReportes();
+        console.log('✅ Corte semanal automático y exportación ejecutados con éxito.');
     } catch (error) {
         console.error('❌ Error en el corte semanal automático:', error);
     }
 });
-const nodemailer = require('nodemailer');
 
-const enviarCorreoReportes = async (archivos) => {
-    const transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-            user: 'tu_correo@gmail.com', // Tu correo
-            pass: 'tu_contraseña_de_aplicacion' // Generada desde Google
-        }
-    });
-
-    await transporter.sendMail({
-        from: '"Sistema NóminaPro" <tu_correo@gmail.com>',
-        to: 'tu_correo@gmail.com',
-        subject: 'Corte Semanal Automático - NóminaPro',
-        text: 'Adjunto los reportes del corte semanal.',
-        attachments: archivos // Aquí van tus archivos Excel
-    });
-};
+// =========================================================
+// 12. INICIO DEL SERVIDOR
+// =========================================================
 app.listen(port, () => console.log(`🚀 Backend corriendo en puerto ${port}`));
