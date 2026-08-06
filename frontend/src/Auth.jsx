@@ -8,6 +8,8 @@ function Auth({ onLoginSuccess }) {
   const [rolSolicitado, setRolSolicitado] = useState('asistente'); 
   const [cargando, setCargando] = useState(false);
 
+  const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://nomia-pro-production.up.railway.app';
+
   const handleLogin = async (e) => {
     e.preventDefault();
     if (!username || !password) return; 
@@ -16,7 +18,7 @@ function Auth({ onLoginSuccess }) {
     try {
       delete axios.defaults.headers.common['Authorization'];
 
-      const res = await axios.post('[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/login', { username, password }, { timeout: 6000 });
+      const res = await axios.post(`${backendUrl}/login`, { username, password }, { timeout: 6000 });
       
       localStorage.setItem('token', res.data.token);
       localStorage.setItem('rol', res.data.rol);
@@ -43,7 +45,7 @@ function Auth({ onLoginSuccess }) {
     setCargando(true);
     
     try {
-      const res = await axios.post('[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/registro', { 
+      const res = await axios.post(`${backendUrl}/registro`, { 
         username, 
         password, 
         rol: rolSolicitado 
