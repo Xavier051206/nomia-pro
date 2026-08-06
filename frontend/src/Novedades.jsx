@@ -24,7 +24,7 @@ function Novedades() {
   const cargarNovedades = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get('http://localhost:3000/novedades', { headers: { Authorization: `Bearer ${token}` } });
+      const res = await axios.get('[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/novedades', { headers: { Authorization: `Bearer ${token}` } });
       setSanciones(res.data.sanciones || []);
       setQuejas(res.data.quejas || []);
     } catch (error) {
@@ -36,7 +36,7 @@ function Novedades() {
     try {
       const token = localStorage.getItem('token');
       // Solicitamos limit=all para que Novedades tenga acceso a la lista completa para el buscador de incidencias
-      const res = await axios.get('http://localhost:3000/empleados?limit=all', { headers: { Authorization: `Bearer ${token}` } });
+      const res = await axios.get('[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/empleados?limit=all', { headers: { Authorization: `Bearer ${token}` } });
       // CORREGIDO: Extraemos el arreglo de empleados de la respuesta paginada del backend
       const lista = Array.isArray(res.data) ? res.data : (res.data.empleados || []);
       setTodosEmpleados(lista);
@@ -82,7 +82,7 @@ function Novedades() {
       
       const descripcionFinal = textoEmpleados + descripcion;
 
-      await axios.post('http://localhost:3000/quejas', {
+      await axios.post('[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/quejas', {
         tipo: tipoIncidencia,
         descripcion: descripcionFinal
       }, { 
@@ -108,7 +108,7 @@ function Novedades() {
 
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`http://localhost:3000/quejas/${id}`, {
+      await axios.delete(`[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/quejas/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       alert('✅ Reporte eliminado correctamente.');

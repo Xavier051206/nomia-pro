@@ -49,7 +49,7 @@ function AgregarEmpleado() {
 
     try {
       const token = localStorage.getItem('token'); // <-- TOKEN RECUPERADO DE LOCALSTORAGE
-      await axios.post('http://localhost:3000/empleados', {
+      await axios.post('[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/empleados', {
         nombre: nombreFormateado,
         apellido: apellidoFormateado,
         dni: cedulaLimpia,

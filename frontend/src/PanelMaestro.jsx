@@ -17,20 +17,20 @@ function PanelMaestro() {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
 
-      const resPendientes = await axios.get('http://localhost:3000/usuarios/pendientes', { headers });
+      const resPendientes = await axios.get('[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/usuarios/pendientes', { headers });
       setPendientes(resPendientes.data);
 
-      const resContador = await axios.get('http://localhost:3000/usuarios/aprobados/count', { headers });
+      const resContador = await axios.get('[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/usuarios/aprobados/count', { headers });
       setTotalAprobados(resContador.data.total);
 
       if (pestañaActiva === 'aprobados') {
-        const resAprobados = await axios.get('http://localhost:3000/usuarios/aprobados', { headers });
+        const resAprobados = await axios.get('[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/usuarios/aprobados', { headers });
         setAprobados(resAprobados.data);
       }
 
       if (pestañaActiva === 'logs') {
         try {
-          const resLogs = await axios.get('http://localhost:3000/auditoria', { headers });
+          const resLogs = await axios.get('[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/auditoria', { headers });
           setLogs(resLogs.data);
         } catch (errorLogs) {
           console.error("Error al pedir los logs:", errorLogs.response?.data);
@@ -51,7 +51,7 @@ function PanelMaestro() {
 
     try {
       const token = localStorage.getItem('token');
-      const respuesta = await axios.put(`http://localhost:3000/usuarios/revision/${id}`, 
+      const respuesta = await axios.put(`[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/usuarios/revision/${id}`, 
         { nuevoEstado },
         { headers: { Authorization: `Bearer ${token}` } }
       );

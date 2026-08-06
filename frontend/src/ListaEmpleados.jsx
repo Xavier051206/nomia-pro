@@ -35,7 +35,7 @@ function ListaEmpleados() {
     setCargando(true);
     try {
       const token = localStorage.getItem('token');
-      const respuesta = await axios.get(`http://localhost:3000/empleados?page=${pagina}&limit=50&estado=${estado}`, {
+      const respuesta = await axios.get(`[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/empleados?page=${pagina}&limit=50&estado=${estado}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setEmpleados(respuesta.data.empleados || []);
@@ -53,7 +53,7 @@ function ListaEmpleados() {
   const obtenerTodosParaExcel = async () => {
     try {
       const token = localStorage.getItem('token');
-      const respuesta = await axios.get(`http://localhost:3000/empleados?limit=all&estado=${filtroEstado}`, {
+      const respuesta = await axios.get(`[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/empleados?limit=all&estado=${filtroEstado}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       return respuesta.data.empleados || [];
@@ -115,7 +115,7 @@ function ListaEmpleados() {
   const registrarLogExportacion = async (tipo, detalles) => {
     try {
       const token = localStorage.getItem('token');
-      await axios.post('http://localhost:3000/auditoria/exportar', {
+      await axios.post('[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/auditoria/exportar', {
         tipoReporte: tipo,
         detalles: detalles
       }, {

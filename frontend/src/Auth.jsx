@@ -16,7 +16,7 @@ function Auth({ onLoginSuccess }) {
     try {
       delete axios.defaults.headers.common['Authorization'];
 
-      const res = await axios.post('http://localhost:3000/login', { username, password }, { timeout: 6000 });
+      const res = await axios.post('[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/login', { username, password }, { timeout: 6000 });
       
       localStorage.setItem('token', res.data.token);
       localStorage.setItem('rol', res.data.rol);
@@ -43,7 +43,7 @@ function Auth({ onLoginSuccess }) {
     setCargando(true);
     
     try {
-      const res = await axios.post('http://localhost:3000/registro', { 
+      const res = await axios.post('[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/registro', { 
         username, 
         password, 
         rol: rolSolicitado 

@@ -34,7 +34,7 @@ function App() {
 
   const verificarCorteGlobal = async (token) => {
     try {
-      const res = await axios.get('http://localhost:3000/corte-semanal/verificar', {
+      const res = await axios.get('[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/corte-semanal/verificar', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.data.pendiente) {
@@ -49,7 +49,7 @@ function App() {
     setExportandoGlobal(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.post('http://localhost:3000/corte-semanal/ejecutar', {}, {
+      const res = await axios.post('[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/corte-semanal/ejecutar', {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -76,7 +76,7 @@ function App() {
     try {
       const token = localStorage.getItem('token');
       if (token) {
-        await axios.post('http://localhost:3000/logout', {}, {
+        await axios.post('[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/logout', {}, {
           headers: { Authorization: `Bearer ${token}` }
         });
       }

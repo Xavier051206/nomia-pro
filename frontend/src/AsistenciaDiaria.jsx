@@ -31,7 +31,7 @@ function AsistenciaDiaria() {
     setCargando(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get(`http://localhost:3000/asistencia?fecha=${fecha}`, {
+      const res = await axios.get(`[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/asistencia?fecha=${fecha}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setEmpleados(res.data.map(emp => ({ ...emp, observacion: emp.observacion || '' })));
@@ -47,7 +47,7 @@ function AsistenciaDiaria() {
 
     try {
       const token = localStorage.getItem('token');
-      await axios.post('http://localhost:3000/asistencia', {
+      await axios.post('[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/asistencia', {
         empleadoID,
         fecha: fechaSeleccionada,
         estado: nuevoEstado,
@@ -75,7 +75,7 @@ function AsistenciaDiaria() {
     if (modoSoloLectura) return;
     try {
       const token = localStorage.getItem('token');
-      await axios.post('http://localhost:3000/asistencia', {
+      await axios.post('[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/asistencia', {
         empleadoID,
         fecha: fechaSeleccionada,
         estado: estadoActual,

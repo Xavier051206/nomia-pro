@@ -18,7 +18,7 @@ function EditarEmpleado() {
   const cargarEmpleados = async () => {
     try {
       const token = localStorage.getItem('token');
-      const resp = await axios.get('http://localhost:3000/empleados?limit=all', {
+      const resp = await axios.get('[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/empleados?limit=all', {
         headers: { Authorization: `Bearer ${token}` }
       });
       // Aseguramos que recibimos el array correcto
@@ -93,7 +93,7 @@ function EditarEmpleado() {
       const idAEditar = empleadoEdit.empleadoid || empleadoEdit.empleadoID;
 
       // Se agrega el Header de Autorización estrictamente aquí
-      await axios.put(`http://localhost:3000/empleados/${idAEditar}`, {
+      await axios.put(`[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/empleados/${idAEditar}`, {
         ...empleadoEdit,
         personaID: empleadoEdit.personaID, // Aseguramos enviar el ID correcto
         motivoSancion: motivoSancion,

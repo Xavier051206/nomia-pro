@@ -21,7 +21,7 @@ function Dashboard() {
   const cargarEstadisticas = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get('http://localhost:3000/dashboard/stats', {
+      const res = await axios.get('[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/dashboard/stats', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setStats(res.data);
@@ -35,7 +35,7 @@ function Dashboard() {
   const verificarSiTocaExportar = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get('http://localhost:3000/corte-semanal/verificar', {
+      const res = await axios.get('[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/corte-semanal/verificar', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.data.pendiente) {
@@ -52,7 +52,7 @@ function Dashboard() {
     setExportando(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.post('http://localhost:3000/corte-semanal/ejecutar', {}, {
+      const res = await axios.post('[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/corte-semanal/ejecutar', {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
