@@ -8,6 +8,8 @@ function PanelMaestro() {
   const [totalAprobados, setTotalAprobados] = useState(0);
   const [logs, setLogs] = useState([]);
 
+  const backendUrl = 'https://nominapro.up.railway.app';
+
   useEffect(() => {
     cargarDatos();
   }, [pestañaActiva]);
@@ -17,20 +19,20 @@ function PanelMaestro() {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
 
-      const resPendientes = await axios.get('[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/usuarios/pendientes', { headers });
+      const resPendientes = await axios.get(`${backendUrl}/usuarios/pendientes`, { headers });
       setPendientes(resPendientes.data);
 
-      const resContador = await axios.get('[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/usuarios/aprobados/count', { headers });
+      const resContador = await axios.get(`${backendUrl}/usuarios/aprobados/count`, { headers });
       setTotalAprobados(resContador.data.total);
 
       if (pestañaActiva === 'aprobados') {
-        const resAprobados = await axios.get('[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/usuarios/aprobados', { headers });
+        const resAprobados = await axios.get(`${backendUrl}/usuarios/aprobados`, { headers });
         setAprobados(resAprobados.data);
       }
 
       if (pestañaActiva === 'logs') {
         try {
-          const resLogs = await axios.get('[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/auditoria', { headers });
+          const resLogs = await axios.get(`${backendUrl}/auditoria`, { headers });
           setLogs(resLogs.data);
         } catch (errorLogs) {
           console.error("Error al pedir los logs:", errorLogs.response?.data);
@@ -51,7 +53,7 @@ function PanelMaestro() {
 
     try {
       const token = localStorage.getItem('token');
-      const respuesta = await axios.put(`[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/usuarios/revision/${id}`, 
+      const respuesta = await axios.put(`${backendUrl}/usuarios/revision/${id}`, 
         { nuevoEstado },
         { headers: { Authorization: `Bearer ${token}` } }
       );
