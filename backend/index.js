@@ -221,7 +221,7 @@ app.post('/empleados', verificarToken, async (req, res) => {
     try {
         if (!req.body || Object.keys(req.body).length === 0) return res.status(400).json({ error: 'Datos vacíos.' });
         
-        const { nombre, apellido, dni, numeroTelf, puesto, salarioBase, cuentaBancaria, fechaContratacion } = req.body;
+        const { nombre, apellido, dni, numeroTelf, puesto, salarioBase, cuentaBancaria, fechaContratacion, direccion } = req.body;
         
         const regexCedula = /^[VE][0-9]{5,8}$/;
         if (!dni || !regexCedula.test(dni)) return res.status(400).json({ error: 'Cédula inválida.' });
@@ -242,8 +242,8 @@ app.post('/empleados', verificarToken, async (req, res) => {
         const idDeLaPersona = rowPersona.personalid || rowPersona.id;
 
         const empleadoResult = await pool.query(
-            'INSERT INTO Empleado (personaid, puesto, salarioBase, cuentaBancaria, fechaContratacion, estado) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-            [idDeLaPersona, puesto, salarioBase, cuentaBancaria || '', fechaContratacion || new Date().toISOString().split('T')[0], 'Activo']
+            'INSERT INTO Empleado (personaid, puesto, salarioBase, cuentaBancaria, fechaContratacion, estado, direccion) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+            [idDeLaPersona, puesto, salarioBase, cuentaBancaria || '', fechaContratacion || new Date().toISOString().split('T')[0], 'Activo', direccion || 'No registrada']
         );
         await pool.query('COMMIT'); 
 
@@ -266,7 +266,7 @@ app.get('/empleados', verificarToken, async (req, res) => {
 
     try {
         let query = `
-            SELECT e.empleadoID as empleadoid, p.personalid as "personaid", p.nombre, p.apellido, p.dni, p.numeroTelf, e.puesto, e.salarioBase, e.estado, e.cuentaBancaria as cuentabancaria,
+            SELECT e.empleadoID as empleadoid, p.personalid as "personaid", p.nombre, p.apellido, p.dni, p.numeroTelf, e.puesto, e.salarioBase, e.estado, e.direccion, e.cuentaBancaria as cuentabancaria,
             COALESCE((
                 SELECT json_agg(json_build_object(
                     'fecha', TO_CHAR(a.fecha, 'YYYY-MM-DD'), 
@@ -275,7 +275,8 @@ app.get('/empleados', verificarToken, async (req, res) => {
                 ))
                 FROM Asistencia a
                 WHERE a.empleadoID = e.empleadoID 
-            ), '[]'::json) as asistencia_semana
+            ), '[]'::json) as asistencia_semana,
+            (SELECT COUNT(*) FROM Sancion s WHERE s.empleadoID = e.empleadoID) as suspensiones
             FROM Empleado e
             JOIN Persona p ON e.personaid = p.personalid
         `;
@@ -327,7 +328,7 @@ app.put('/empleados/:id/cuenta', verificarToken, async (req, res) => {
 
 app.put('/empleados/:id', verificarToken, async (req, res) => {
     const { id } = req.params;
-    const { personaID, personaid, nombre, apellido, dni, numeroTelf, puesto, salarioBase, cuentaBancaria, estado, motivoSancion, diasSuspension } = req.body;
+    const { personaID, personaid, nombre, apellido, dni, numeroTelf, puesto, salarioBase, cuentaBancaria, estado, motivoSancion, diasSuspension, direccion } = req.body;
     const idPersonaReal = personaid || personaID;
     
     try {
@@ -346,8 +347,8 @@ app.put('/empleados/:id', verificarToken, async (req, res) => {
         );
         
         await pool.query(
-            'UPDATE Empleado SET puesto = $1, salarioBase = $2, cuentaBancaria = $3, estado = $4 WHERE empleadoID = $5',
-            [puesto, salarioBase, cuentaBancaria || '', estado, id]
+            'UPDATE Empleado SET puesto = $1, salarioBase = $2, cuentaBancaria = $3, estado = $4, direccion = $5 WHERE empleadoID = $6',
+            [puesto, salarioBase, cuentaBancaria || '', estado, direccion || 'No registrada', id]
         );
 
         if (estado === 'Sancionado') {
@@ -530,10 +531,14 @@ app.get('/dashboard/stats', verificarToken, async (req, res) => {
         const sancionadosRes = await pool.query("SELECT COUNT(*) FROM Empleado WHERE estado = 'Sancionado'");
         const totalRes = await pool.query("SELECT COUNT(*) FROM Empleado");
 
+        // SE AGREGÓ EXTRACT(ISODOW) PARA SABER QUÉ DÍA ES Y PODER IGNORAR LOS DOMINGOS
         const empleadosAsistencia = await pool.query(`
             SELECT e.salarioBase,
             COALESCE((
-                SELECT json_agg(json_build_object('estado', a.estado))
+                SELECT json_agg(json_build_object(
+                    'estado', a.estado,
+                    'dia', EXTRACT(ISODOW FROM a.fecha)
+                ))
                 FROM Asistencia a
                 WHERE a.empleadoID = e.empleadoID 
             ), '[]'::json) as asistencia_semana
@@ -547,10 +552,14 @@ app.get('/dashboard/stats', verificarToken, async (req, res) => {
 
         empleadosAsistencia.rows.forEach(emp => {
             const salarioBaseNum = Number(emp.salariobase || emp.salarioBase) || 0;
-            const salarioDiario = salarioBaseNum / 6;
+            // DEVUELTO A 6 DÍAS COMO PEDISTE
+            const salarioDiario = salarioBaseNum / 6; 
             let ausencias = 0;
 
             emp.asistencia_semana.forEach(a => {
+                // SI EL DÍA ES 7 (DOMINGO), SE IGNORA POR COMPLETO
+                if (a.dia === 7) return;
+
                 if (a.estado === 'Ausente') {
                     ausencias += 1;
                     diasAusentes += 1; 
@@ -590,11 +599,14 @@ app.get('/corte-semanal/verificar', verificarToken, async (req, res) => {
         const day = now.getDay(); 
         const hour = now.getHours();
 
-        const esHoraDeCorte = (day === 6 && hour >= 15) || day === 0;
+        // Verifica si es Viernes a partir de las 4 PM (16:00) o Sábado
+        const esHoraDeCorte = (day === 5 && hour >= 16) || day === 6;
         if (!esHoraDeCorte) return res.json({ pendiente: false });
 
+        // Calcula correctamente el inicio de semana saltando al sábado pasado
+        const offsetToSaturday = day === 6 ? 0 : day + 1;
         const inicioSemana = new Date(now);
-        inicioSemana.setDate(now.getDate() - day); 
+        inicioSemana.setDate(now.getDate() - offsetToSaturday); 
         inicioSemana.setHours(0,0,0,0);
 
         const existeCorte = await pool.query(
@@ -651,7 +663,7 @@ app.post('/corte-semanal/ejecutar', verificarToken, async (req, res) => {
     try {
         const resultadoCorte = await ejecutarCorteSemanal(req.usuario.username);
         res.json({ 
-            mensaje: '¡Corte realizado con éxito! La data principal (empleados, sanciones y vetados) está a salvo, y el panel de reportes quedó limpio para el próximo lunes.',
+            mensaje: '¡Corte realizado con éxito! La data principal (empleados, sanciones y vetados) está a salvo, y el panel de reportes quedó limpio para el próximo sábado.',
             datos: resultadoCorte
         });
     } catch (error) {
@@ -661,7 +673,7 @@ app.post('/corte-semanal/ejecutar', verificarToken, async (req, res) => {
 });
 
 // =========================================================
-// 11. CORREO Y CRON JOB AUTOMÁTICO (SÁBADOS A LAS 11:59 PM)
+// 11. CORREO Y CRON JOB AUTOMÁTICO (VIERNES A LAS 11:59 PM)
 // =========================================================
 const enviarCorreoReportes = async (archivos) => {
     try {
@@ -686,9 +698,9 @@ const enviarCorreoReportes = async (archivos) => {
     }
 };
 
-// Cron programado para todos los sábados a las 11:59 PM -> '59 23 * * 6'
-cron.schedule('59 23 * * 6', async () => {
-    console.log('⏰ Iniciando corte semanal automático de las 11:59 PM...');
+// Cron programado para todos los Viernes (5) a las 11:59 PM
+cron.schedule('59 23 * * 5', async () => {
+    console.log('⏰ Iniciando corte semanal automático del viernes a las 11:59 PM...');
     try {
         const resultadoCorte = await ejecutarCorteSemanal('Cron Automático 11:59PM');
         await enviarCorreoReportes();

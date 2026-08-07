@@ -43,9 +43,19 @@ function AsistenciaDiaria() {
     }
   };
 
+  // Esta función ahora se usa principalmente para Presente y Ausente
   const guardarAsistenciaIndividual = async (empleadoID, nuevoEstado, observacionActual) => {
     if (modoSoloLectura) return; // Candado extra por seguridad
 
+    // Si le dan a "Justificado", solo cambia el estado visualmente, NO guarda aún.
+    if (nuevoEstado === 'Justificado') {
+       setEmpleados(empleados.map(emp => 
+        emp.empleadoid === empleadoID ? { ...emp, asistencia_estado: 'Justificado' } : emp
+      ));
+      return; 
+    }
+
+    // Para Presente y Ausente, sí guarda inmediatamente
     try {
       const token = localStorage.getItem('token');
       await axios.post(`${backendUrl}/asistencia`, {
@@ -72,21 +82,29 @@ function AsistenciaDiaria() {
     ));
   };
 
-  const guardarObservacion = async (empleadoID, estadoActual, observacionActual) => {
+  // Esta función ahora sirve para guardar la justificación y su motivo
+  const guardarObservacionYJustificacion = async (empleadoID, estadoActual, observacionActual) => {
     if (modoSoloLectura) return;
+    
+    // Validación para asegurarse de que escriban el motivo
+    if (estadoActual === 'Justificado' && (!observacionActual || observacionActual.trim() === '')) {
+      alert('⚠️ Debes escribir el motivo de la justificación antes de guardar.');
+      return;
+    }
+
     try {
       const token = localStorage.getItem('token');
       await axios.post(`${backendUrl}/asistencia`, {
         empleadoID,
         fecha: fechaSeleccionada,
-        estado: estadoActual,
+        estado: estadoActual, // Será 'Justificado'
         observacion: observacionActual
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      alert('✅ Observación guardada');
+      alert('✅ Falta justificada guardada con éxito');
     } catch (error) {
-      alert('❌ Error al guardar observación');
+      alert('❌ Error al guardar la justificación');
     }
   };
 
@@ -212,24 +230,28 @@ function AsistenciaDiaria() {
                   </button>
                 </div>
 
-                <div className="flex gap-2">
-                  <input 
-                    type="text"
-                    value={emp.observacion}
-                    onChange={(e) => manejarCambioObservacion(emp.empleadoid, e.target.value)}
-                    disabled={modoSoloLectura}
-                    placeholder="Nota..."
-                    className="w-full p-2 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  />
-                  <button 
-                    onClick={() => guardarObservacion(emp.empleadoid, emp.asistencia_estado, emp.observacion)} 
-                    disabled={modoSoloLectura}
-                    className={`bg-slate-800 text-white px-3 rounded-lg text-xs font-bold transition shadow ${!modoSoloLectura ? 'hover:bg-slate-900' : 'opacity-50 cursor-not-allowed'}`} 
-                    title="Guardar Nota"
-                  >
-                    💾
-                  </button>
-                </div>
+                {/* LA BARRA DE NOTA SOLO APARECE SI EL ESTADO ES JUSTIFICADO */}
+                {emp.asistencia_estado === 'Justificado' && (
+                  <div className="flex gap-2 animate-fade-in bg-gray-50 p-2 rounded-lg border border-gray-200">
+                    <input 
+                      type="text"
+                      value={emp.observacion}
+                      onChange={(e) => manejarCambioObservacion(emp.empleadoid, e.target.value)}
+                      disabled={modoSoloLectura}
+                      placeholder="Escribe el motivo de la justificación..."
+                      className="w-full p-2 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    />
+                    <button 
+                      onClick={() => guardarObservacionYJustificacion(emp.empleadoid, emp.asistencia_estado, emp.observacion)} 
+                      disabled={modoSoloLectura}
+                      className={`bg-blue-600 text-white px-3 rounded-lg text-xs font-bold transition shadow flex items-center gap-1 ${!modoSoloLectura ? 'hover:bg-blue-700' : 'opacity-50 cursor-not-allowed'}`} 
+                      title="Guardar Justificación"
+                    >
+                      💾 Guardar
+                    </button>
+                  </div>
+                )}
+                
               </div>
             </div>
           ))}

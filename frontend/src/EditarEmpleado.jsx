@@ -47,6 +47,7 @@ function EditarEmpleado() {
       apellido: emp.apellido || '',
       dni: emp.dni || '',
       numeroTelf: emp.numeroTelf || emp.numerotelf || '',
+      direccion: emp.direccion || '', // <-- AÑADIDO: Cargar dirección de la BD
       puesto: emp.puesto || 'Cuadrillero',
       salarioBase: emp.salarioBase || emp.salariobase || '',
       cuentaBancaria: emp.cuentabancaria || '', 
@@ -188,6 +189,22 @@ function EditarEmpleado() {
               <label className="text-xs sm:text-sm font-semibold text-gray-600 block mb-1">Teléfono</label>
               <input name="numeroTelf" value={empleadoEdit.numeroTelf} onChange={manejarCambio} disabled={cargando} className="w-full p-2.5 border rounded text-xs sm:text-sm font-mono disabled:bg-gray-100" />
             </div>
+
+            {/* AÑADIDO: Campo para la Dirección (ocupa todo el ancho disponible) */}
+            <div className="col-span-1 sm:col-span-2 md:col-span-3">
+              <label className="text-xs sm:text-sm font-semibold text-gray-600 block mb-1">Dirección de Vivienda</label>
+              <input 
+                name="direccion" 
+                value={empleadoEdit.direccion} 
+                onChange={manejarCambio} 
+                required 
+                maxLength={100}
+                disabled={cargando} 
+                placeholder="Ej: Macuto, La Guaira..."
+                className="w-full p-2.5 border rounded text-xs sm:text-sm disabled:bg-gray-100" 
+              />
+            </div>
+
             <div>
               <label className="text-xs sm:text-sm font-semibold text-gray-600 block mb-1">Puesto</label>
               <select name="puesto" value={empleadoEdit.puesto} onChange={manejarCambio} disabled={cargando} className="w-full p-2.5 border rounded text-xs sm:text-sm bg-white disabled:bg-gray-100">

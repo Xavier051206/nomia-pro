@@ -6,6 +6,7 @@ function AgregarEmpleado() {
   const [apellido, setApellido] = useState('');
   const [dni, setDni] = useState('');
   const [numeroTelf, setNumeroTelf] = useState('');
+  const [direccion, setDireccion] = useState(''); // <-- NUEVO ESTADO PARA DIRECCIÓN
   const [puesto, setPuesto] = useState(''); 
   const [salarioBase, setSalarioBase] = useState('');
   const [cuentaBancaria, setCuentaBancaria] = useState(''); 
@@ -56,6 +57,7 @@ function AgregarEmpleado() {
         apellido: apellidoFormateado,
         dni: cedulaLimpia,
         numeroTelf: numeroTelf, 
+        direccion: direccion.trim() || 'No registrada', // <-- ENVIAMOS LA DIRECCIÓN AL BACKEND
         fechaNacimiento: '1990-01-01',
         puesto: puesto,
         salarioBase: parseFloat(salarioBase),
@@ -66,7 +68,8 @@ function AgregarEmpleado() {
       });
       
       alert('✅ ¡Empleado registrado con éxito!');
-      setNombre(''); setApellido(''); setDni(''); setNumeroTelf(''); setPuesto(''); setSalarioBase(''); setCuentaBancaria('');
+      // <-- LIMPIAMOS EL CAMPO DE DIRECCIÓN TAMBIÉN
+      setNombre(''); setApellido(''); setDni(''); setNumeroTelf(''); setDireccion(''); setPuesto(''); setSalarioBase(''); setCuentaBancaria('');
       
     } catch (error) {
       console.error("Error del backend:", error.response?.data);
@@ -88,6 +91,19 @@ function AgregarEmpleado() {
         <input type="text" placeholder="Apellido" value={apellido} onChange={e => setApellido(e.target.value)} required className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm sm:text-base" />
         <input type="text" placeholder="Cédula (Ej: V12345678)" value={dni} onChange={e => setDni(e.target.value.toUpperCase())} required maxLength={10} className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm sm:text-base" />
         <input type="text" placeholder="Teléfono (Ej: 0414-1234567)" value={numeroTelf} onChange={e => setNumeroTelf(e.target.value)} required className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm sm:text-base" />
+        
+        {/* NUEVO CAMPO DE DIRECCIÓN - Ocupa todo el ancho */}
+        <div className="col-span-1 md:col-span-2">
+          <input 
+            type="text" 
+            placeholder="Dirección de Vivienda (Ej: Macuto, La Guaira...)" 
+            value={direccion} 
+            onChange={e => setDireccion(e.target.value)} 
+            required 
+            maxLength={100} 
+            className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm sm:text-base" 
+          />
+        </div>
         
         <div className="col-span-1 md:col-span-2 bg-green-50 p-3 rounded-lg border border-green-100 mb-2 mt-2">
           <h3 className="text-green-800 font-semibold text-sm">Datos Laborales y Bancarios</h3>

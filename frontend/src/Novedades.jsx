@@ -1,9 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
+// Función para obtener la fecha local correcta para consultar las justificaciones de HOY
+const getFechaHoyLocal = () => {
+  const hoy = new Date();
+  const offset = hoy.getTimezoneOffset() * 60000;
+  return new Date(hoy.getTime() - offset).toISOString().split('T')[0];
+};
+
 function Novedades() {
   const [sanciones, setSanciones] = useState([]);
   const [quejas, setQuejas] = useState([]);
+  const [justificados, setJustificados] = useState([]); // <-- NUEVO ESTADO PARA JUSTIFICADOS
   
   // Estados para el reporte y selección de múltiples empleados
   const [todosEmpleados, setTodosEmpleados] = useState([]);
@@ -15,7 +23,7 @@ function Novedades() {
   
   // Saber si el usuario actual es el Master
   const rolUsuario = localStorage.getItem('rol');
-  const backendUrl = 'https://nominapro.up.railway.app';
+  const backendUrl = 'https://nomia-pro-production.up.railway.app'; // Asegúrate que nomia o nomina esté bien escrito
 
   useEffect(() => {
     cargarNovedades();
@@ -25,9 +33,18 @@ function Novedades() {
   const cargarNovedades = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get(`${backendUrl}/novedades`, { headers: { Authorization: `Bearer ${token}` } });
-      setSanciones(res.data.sanciones || []);
-      setQuejas(res.data.quejas || []);
+      
+      // 1. Cargar Sanciones y Quejas desde el backend
+      const resNovedades = await axios.get(`${backendUrl}/novedades`, { headers: { Authorization: `Bearer ${token}` } });
+      setSanciones(resNovedades.data.sanciones || []);
+      setQuejas(resNovedades.data.quejas || []);
+
+      // 2. Cargar Asistencia de HOY para extraer a los Justificados
+      const hoy = getFechaHoyLocal();
+      const resAsistencia = await axios.get(`${backendUrl}/asistencia?fecha=${hoy}`, { headers: { Authorization: `Bearer ${token}` } });
+      const justificadosHoy = resAsistencia.data.filter(emp => emp.asistencia_estado === 'Justificado');
+      setJustificados(justificadosHoy);
+
     } catch (error) {
       console.error('Error cargando novedades', error);
     }
@@ -139,7 +156,7 @@ function Novedades() {
       <div className="bg-slate-800 rounded-xl p-4 sm:p-8 text-white shadow-lg flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-2xl sm:text-3xl font-black mb-1 sm:mb-2">📰 Panel de Novedades y Monitoreo</h2>
-          <p className="text-xs sm:text-sm text-slate-300">Monitorea el estado de las suspensiones y reporta incidencias diarias en la finca.</p>
+          <p className="text-xs sm:text-sm text-slate-300">Monitorea las suspensiones, faltas justificadas y reporta incidencias diarias.</p>
         </div>
         <button 
           onClick={cargarNovedades}
@@ -151,30 +168,52 @@ function Novedades() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
-        {/* COLUMNA 1: SANCIONES ACTIVAS */}
+        {/* COLUMNA 1: PANEL MIXTO (SANCIONES + JUSTIFICADOS) */}
         <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-4 sm:p-6">
-          <h3 className="text-lg sm:text-xl font-bold text-slate-800 mb-2 flex items-center gap-2">⏱️ Control de Suspensiones</h3>
-          <p className="text-xs sm:text-sm text-slate-500 mb-4">Empleados con suspensión vigente (desaparecen al cumplirse el plazo).</p>
+          <h3 className="text-lg sm:text-xl font-bold text-slate-800 mb-2 flex items-center gap-2">⏱️ Inasistencias y Suspensiones</h3>
+          <p className="text-xs sm:text-sm text-slate-500 mb-4">Registro de empleados suspendidos y faltas justificadas del día de hoy.</p>
           
           <div className="space-y-3 max-h-[500px] sm:max-h-[600px] overflow-y-auto pr-1">
-            {sanciones.length === 0 ? (
-              <p className="p-4 bg-slate-50 text-slate-500 text-center rounded italic border border-dashed text-xs sm:text-sm">No hay empleados suspendidos actualmente.</p>
+            {sanciones.length === 0 && justificados.length === 0 ? (
+              <p className="p-4 bg-slate-50 text-slate-500 text-center rounded italic border border-dashed text-xs sm:text-sm">No hay empleados suspendidos ni faltas justificadas hoy.</p>
             ) : (
-              sanciones.map((s, index) => {
-                const estado = calcularEstadoSancion(s.dias_suspension, s.dias_transcurridos);
-                return (
-                  <div key={s.empleadoid || index} className="p-3 sm:p-4 border rounded-lg shadow-sm flex flex-col justify-between hover:shadow-md transition bg-slate-50">
-                    <div>
-                      <h4 className="font-bold text-slate-700 text-sm sm:text-base">{s.nombre} {s.apellido}</h4>
-                      <p className="text-xs text-slate-500 mt-1"><span className="font-semibold">Motivo:</span> {s.motivo}</p>
-                      <p className="text-xs text-slate-500"><span className="font-semibold">Inició:</span> {s.fecha ? new Date(s.fecha).toLocaleDateString('es-VE') : 'Reciente'}</p>
+              <>
+                {/* LISTA DE SUSPENDIDOS */}
+                {sanciones.map((s, index) => {
+                  const estado = calcularEstadoSancion(s.dias_suspension, s.dias_transcurridos);
+                  return (
+                    <div key={`sancion-${s.empleadoid || index}`} className="p-3 sm:p-4 border border-red-200 rounded-lg shadow-sm flex flex-col justify-between hover:shadow-md transition bg-red-50/30">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <h4 className="font-bold text-slate-800 text-sm sm:text-base">{s.nombre} {s.apellido}</h4>
+                          <p className="text-xs text-slate-600 mt-1"><span className="font-bold">Motivo:</span> {s.motivo}</p>
+                          <p className="text-xs text-slate-500"><span className="font-bold">Inició:</span> {s.fecha ? new Date(s.fecha).toLocaleDateString('es-VE') : 'Reciente'}</p>
+                        </div>
+                        <span className="bg-red-100 text-red-700 text-[10px] font-black px-2 py-1 rounded uppercase tracking-widest border border-red-200 shrink-0">🔴 Suspendido</span>
+                      </div>
+                      <div className={`mt-2 px-3 py-2 rounded font-bold text-xs sm:text-sm text-center border ${estado.color}`}>
+                        {estado.texto} ({s.dias_suspension} días en total)
+                      </div>
                     </div>
-                    <div className={`mt-3 px-3 py-2 rounded font-bold text-xs sm:text-sm text-center border ${estado.color}`}>
-                      {estado.texto} ({s.dias_suspension} días en total)
+                  );
+                })}
+
+                {/* LISTA DE JUSTIFICADOS (DE HOY) */}
+                {justificados.map((j, index) => (
+                  <div key={`justificado-${j.empleadoid || index}`} className="p-3 sm:p-4 border border-gray-300 rounded-lg shadow-sm flex flex-col hover:shadow-md transition bg-gray-50">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <h4 className="font-bold text-slate-800 text-sm sm:text-base">{j.nombre} {j.apellido}</h4>
+                        <p className="text-[10px] text-slate-500 font-mono mt-0.5">C.I: {j.dni}</p>
+                      </div>
+                      <span className="bg-gray-200 text-gray-700 text-[10px] font-black px-2 py-1 rounded uppercase tracking-widest border border-gray-300 shrink-0">⚪ Justificado</span>
+                    </div>
+                    <div className="mt-1 p-2 bg-white rounded border border-gray-200">
+                      <p className="text-xs text-slate-700 italic"><span className="font-bold text-slate-900 not-italic">Nota / Motivo:</span> {j.observacion || 'Sin motivo registrado.'}</p>
                     </div>
                   </div>
-                );
-              })
+                ))}
+              </>
             )}
           </div>
         </div>
