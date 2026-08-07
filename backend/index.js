@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cron = require('node-cron');
 const nodemailer = require('nodemailer');
+const xlsx = require('xlsx'); // NUEVO: Librería para generar el Excel
 require('dotenv').config();
 
 const app = express();
@@ -570,7 +571,7 @@ app.post('/asistencia', verificarToken, async (req, res) => {
 });
 
 // =========================================================
-// 10. ESTADÍSTICAS Y CORTE SEMANAL (CORREGIDO HORA VENEZUELA Y CANDADO VIERNES 4 PM)
+// 10. ESTADÍSTICAS Y CORTE SEMANAL
 // =========================================================
 app.get('/dashboard/stats', verificarToken, async (req, res) => {
     try {
@@ -642,22 +643,20 @@ app.get('/dashboard/stats', verificarToken, async (req, res) => {
 
 app.get('/corte-semanal/verificar', verificarToken, async (req, res) => {
     try {
-        // Hora de Venezuela (UTC-4)
-        const now = new Date();
-        const vetTime = new Date(now.getTime() - (4 * 60 * 60 * 1000));
+        const vetTime = getHoraVenezuela();
         const day = vetTime.getDay(); 
         const hour = vetTime.getHours();
 
-        // CANDADO ESTRICTO: ÚNICAMENTE los VIERNES (day === 5) después de las 4 PM (16:00)
-        const esViernesDespuesDe4PM = (day === 5 && hour >= 16);
-        if (!esViernesDespuesDe4PM) return res.json({ pendiente: false });
+        const esHoraDeCorte = (day === 5 && hour >= 16) || day === 6;
+        if (!esHoraDeCorte) return res.json({ pendiente: false });
 
+        const offsetToSaturday = day === 6 ? 0 : day + 1;
         const inicioSemana = new Date(vetTime);
-        inicioSemana.setDate(vetTime.getDate() - 5); 
+        inicioSemana.setDate(vetTime.getDate() - offsetToSaturday); 
         inicioSemana.setHours(0,0,0,0);
 
         const existeCorte = await pool.query(
-            'SELECT * FROM CorteSemanal WHERE fecha_inicio >= $1',
+            'SELECT * FROM CorteSemanal WHERE creado_en >= $1',
             [inicioSemana]
         );
 
@@ -671,7 +670,7 @@ app.get('/corte-semanal/verificar', verificarToken, async (req, res) => {
 });
 
 // =========================================================
-// 11. CORREO Y REPORTE COMPLETO (AUDITORÍA, NÓMINA, SANCIONES Y ASISTENCIAS)
+// 11. CORREO Y REPORTE COMPLETO EN EXCEL
 // =========================================================
 const ejecutarCorteSemanal = async (usuario = 'Sistema Automático') => {
     const client = await pool.connect();
@@ -685,53 +684,121 @@ const ejecutarCorteSemanal = async (usuario = 'Sistema Automático') => {
         const totalSancionados = parseInt(sancionadosRes.rows[0].count) || 0;
         const fechaHoy = new Date().toISOString().split('T')[0];
 
-        const insertRes = await client.query(
-            `INSERT INTO CorteSemanal (fecha_inicio, fecha_fin, total_activos, total_sancionados, porcentaje_asistencia, detalles) 
-             VALUES ($1, $1, $2, $3, $4, $5) RETURNING *`,
-            [fechaHoy, totalActivos, totalSancionados, 0.00, 'Corte semanal y respaldo general por ' + usuario]
-        );
-
-        // Recopilamos absolutamente TODO para el reporte de correo:
-        // 1. Empleados y sus asistencias recientes
+        // 1. Buscamos la información cruda de empleados (incluyendo el día extraído para la matemática)
         const empQuery = await client.query(`
             SELECT e.empleadoID, p.nombre, p.apellido, p.dni, e.puesto, e.estado, e.cuadrilla, e.salarioBase,
-            (SELECT json_agg(json_build_object('fecha', a.fecha, 'estado', a.estado, 'observacion', a.observacion)) 
+            (SELECT json_agg(json_build_object('fecha', a.fecha, 'estado', a.estado, 'observacion', a.observacion, 'dia', EXTRACT(ISODOW FROM a.fecha))) 
              FROM Asistencia a WHERE a.empleadoID = e.empleadoID) as asistencias
             FROM Empleado e JOIN Persona p ON e.personaid = p.personalid
         `);
 
-        // 2. Sanciones y suspensiones activas o recientes
+        // 2. Realizar los cálculos idénticos al Dashboard
+        let totalNomina = 0;
+        let diasTrabajados = 0;
+        let diasAusentes = 0;
+
+        const empleadosConNomina = empQuery.rows.map(emp => {
+            const salarioBaseNum = Number(emp.salariobase || emp.salarioBase) || 0;
+            const salarioDiario = salarioBaseNum / 6; 
+            let ausencias = 0;
+            const asistenciasArray = emp.asistencias || [];
+
+            asistenciasArray.forEach(a => {
+                if (a.dia === 7) return; // Omitir domingos
+
+                if (a.estado === 'Ausente') {
+                    ausencias += 1;
+                    diasAusentes += 1; 
+                } else if (a.estado === 'Presente' || a.estado === 'Justificado') {
+                    diasTrabajados += 1; 
+                }
+            });
+
+            const pagoFinal = salarioBaseNum - (ausencias * salarioDiario);
+            const pagoReal = pagoFinal < 0 ? 0 : pagoFinal;
+            
+            // Solo sumamos a la nómina general si el empleado está activo
+            if (emp.estado === 'Activo') {
+                totalNomina += pagoReal;
+            }
+
+            // Aplanamos las asistencias para que se vean bien en una celda de Excel
+            const detalleDias = asistenciasArray.map(a => `${a.fecha} (${a.estado})`).join(' | ');
+
+            // Retornamos el perfil de la persona listo con su pago semanal y formato para Excel
+            return {
+                "ID Empleado": emp.empleadoid || emp.empleadoID,
+                "Nombre": emp.nombre,
+                "Apellido": emp.apellido,
+                "Cédula": emp.dni,
+                "Puesto": emp.puesto,
+                "Cuadrilla": emp.cuadrilla,
+                "Estado": emp.estado,
+                "Salario Base ($)": salarioBaseNum.toFixed(2),
+                "Faltas Semanales": ausencias,
+                "PAGO SEMANAL A RECIBIR ($)": pagoReal.toFixed(2),
+                "Detalle de Asistencia Diaria": detalleDias
+            };
+        });
+
+        // Calculamos el porcentaje real
+        const totalDiasRegistrados = diasTrabajados + diasAusentes;
+        let porcentajeAsistencia = 100; 
+        if (totalDiasRegistrados > 0) {
+            porcentajeAsistencia = (diasTrabajados / totalDiasRegistrados) * 100;
+        } else {
+            porcentajeAsistencia = 0; 
+        }
+
+        // 3. Ahora sí, insertamos en CorteSemanal con los números ya calculados
+        const insertRes = await client.query(
+            `INSERT INTO CorteSemanal (fecha_inicio, fecha_fin, total_activos, total_sancionados, porcentaje_asistencia, detalles) 
+             VALUES ($1, $1, $2, $3, $4, $5) RETURNING *`,
+            [fechaHoy, totalActivos, totalSancionados, porcentajeAsistencia.toFixed(2), 'Corte semanal y respaldo general por ' + usuario]
+        );
+
+        // 4. Sanciones activas o recientes
         const sancQuery = await client.query(`
-            SELECT s.sancionID, p.nombre, p.apellido, s.fecha, s.motivo, s.dias_suspension
+            SELECT s.sancionID as "ID Sancion", p.nombre as "Nombre", p.apellido as "Apellido", s.fecha as "Fecha", s.motivo as "Motivo", s.dias_suspension as "Dias Suspendido"
             FROM Sancion s 
             JOIN Empleado e ON s.empleadoID = e.empleadoID 
             JOIN Persona p ON e.personaid = p.personalid
             ORDER BY s.fecha DESC LIMIT 30
         `);
 
-        // 3. Registros de Auditoría (Logs) de la semana
+        // 5. Registros de Auditoría
         const auditQuery = await client.query(`
-            SELECT usuario, accion, detalles, fecha 
+            SELECT usuario as "Usuario", accion as "Accion", detalles as "Detalles de la Accion", fecha as "Fecha"
             FROM Auditoria 
             ORDER BY fecha DESC LIMIT 50
         `);
 
-        // Estructura consolidada del reporte completo
+        // 6. Reporte Final Preparado para Excel
         const reporteConsolidado = {
-            corte: insertRes.rows[0],
-            empleados: empQuery.rows,
+            resumen_corte: {
+                "Fecha de Corte": insertRes.rows[0].fecha_fin,
+                "Total Empleados Activos": insertRes.rows[0].total_activos,
+                "Total Empleados Sancionados": insertRes.rows[0].total_sancionados,
+                "Porcentaje Global de Asistencia": insertRes.rows[0].porcentaje_asistencia + "%",
+                "MONTO TOTAL NÓMINA ($)": totalNomina.toFixed(2),
+                "Detalles": insertRes.rows[0].detalles
+            },
+            nomina_y_asistencias: empleadosConNomina,
             sanciones_suspensiones: sancQuery.rows,
             auditoria_logs: auditQuery.rows
         };
 
         try {
+            // LIMPIEZA AUTOMÁTICA
+            await client.query('DELETE FROM Asistencia');
             await client.query('DELETE FROM Queja');
         } catch (eQ) {
-            console.log("Aviso: No se pudo vaciar la tabla Queja automáticamente:", eQ.message);
+            console.log("Aviso: No se pudo vaciar las tablas automáticamente:", eQ.message);
         }
 
         await client.query('COMMIT');
-        await registrarAuditoria(usuario, 'CORTE_SEMANAL_Y_REPORTE', 'Se ejecutó el corte semanal y se consolidó el reporte general operativo.');
+        await registrarAuditoria(usuario, 'CORTE_SEMANAL_Y_REPORTE', 'Se ejecutó el corte semanal y se consolidó el reporte. Nómina total calculada: $' + totalNomina.toFixed(2));
+        
         return reporteConsolidado;
     } catch (error) {
         await client.query('ROLLBACK');
@@ -751,22 +818,44 @@ const enviarCorreoReportes = async (datosReporte) => {
             }
         });
 
-        // Convertimos el reporte completo a un archivo adjunto JSON adjuntado al correo
-        const jsonReporteBuffer = Buffer.from(JSON.stringify(datosReporte, null, 2), 'utf-8');
+        // ==========================================
+        // CREACIÓN DEL ARCHIVO EXCEL (.XLSX)
+        // ==========================================
+        const wb = xlsx.utils.book_new(); 
+
+        // Hoja 1: Resumen
+        const wsResumen = xlsx.utils.json_to_sheet([datosReporte.resumen_corte]);
+        xlsx.utils.book_append_sheet(wb, wsResumen, "Resumen del Corte");
+
+        // Hoja 2: Nómina y Asistencias
+        const wsNomina = xlsx.utils.json_to_sheet(datosReporte.nomina_y_asistencias);
+        xlsx.utils.book_append_sheet(wb, wsNomina, "Nómina Oficial");
+
+        // Hoja 3: Sanciones
+        const wsSanciones = xlsx.utils.json_to_sheet(datosReporte.sanciones_suspensiones);
+        xlsx.utils.book_append_sheet(wb, wsSanciones, "Sanciones Activas");
+
+        // Hoja 4: Auditoría (Logs)
+        const wsAuditoria = xlsx.utils.json_to_sheet(datosReporte.auditoria_logs);
+        xlsx.utils.book_append_sheet(wb, wsAuditoria, "Registro de Auditoría");
+
+        // Convertir el libro a formato Excel (Buffer)
+        const excelBuffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+        // ==========================================
 
         await transporter.sendMail({
             from: '"Sistema NóminaPro" <' + process.env.EMAIL_USER + '>',
             to: process.env.EMAIL_TO || process.env.EMAIL_USER,
             subject: '📊 Reporte y Corte Semanal Consolidado - NóminaPro',
-            text: 'Hola. Adjunto encontrarás el reporte consolidado del corte semanal. Este archivo incluye todos los registros de empleados, asistencias, faltas justificadas, suspensiones activas con sus días restantes, y la auditoría (logs) completa del sistema.',
+            text: 'Hola. Adjunto encontrarás el reporte consolidado del corte semanal en formato Excel. Este archivo incluye todos los registros de empleados, cálculo total de la nómina en dólares, asistencias, faltas justificadas, suspensiones activas y la auditoría (logs) completa.',
             attachments: [
                 {
-                    filename: `Reporte_Consolidado_Semanal_${new Date().toISOString().split('T')[0]}.json`,
-                    content: jsonReporteBuffer
+                    filename: `Nomina_Oficial_Semanal_${new Date().toISOString().split('T')[0]}.xlsx`,
+                    content: excelBuffer
                 }
             ]
         });
-        console.log('📧 Correo con el reporte semanal consolidado enviado con éxito.');
+        console.log('📧 Correo con el reporte semanal en EXCEL enviado con éxito.');
     } catch (error) {
         console.error('❌ Error enviando correo automático:', error);
     }
@@ -776,12 +865,11 @@ app.post('/corte-semanal/ejecutar', verificarToken, async (req, res) => {
     try {
         const resultadoReporte = await ejecutarCorteSemanal(req.usuario.username);
         
-        // Intentamos enviar el correo de inmediato al hacer el corte manual o automático
         await enviarCorreoReportes(resultadoReporte);
 
         res.json({ 
             mensaje: '¡Corte realizado y correo enviado con éxito! Se han consolidado todos los registros, logs, suspensiones y asistencias.',
-            datos: resultadoReporte.corte
+            datos: resultadoReporte.resumen_corte
         });
     } catch (error) {
         console.error("Error al ejecutar corte semanal:", error);
@@ -789,13 +877,13 @@ app.post('/corte-semanal/ejecutar', verificarToken, async (req, res) => {
     }
 });
 
-// CRON JOB AUTOMÁTICO EXACTO: Viernes a las 11:59 PM (Hora Venezuela = 03:59 UTC del sábado)
+// CRON JOB AUTOMÁTICO (VIERNES A LAS 11:59 PM VET -> 03:59 UTC SÁBADO)
 cron.schedule('59 03 * * 6', async () => {
-    console.log('⏰ Iniciando corte semanal automático del viernes a las 11:59 PM...');
+    console.log('⏰ Iniciando corte semanal automático del viernes a las 11:59 PM VET...');
     try {
         const resultadoReporte = await ejecutarCorteSemanal('Cron Automático 11:59PM');
         await enviarCorreoReportes(resultadoReporte);
-        console.log('✅ Corte semanal automático, respaldo y correo ejecutados con éxito.');
+        console.log('✅ Corte semanal automático, respaldo y correo en Excel ejecutados con éxito.');
     } catch (error) {
         console.error('❌ Error en el corte semanal automático:', error);
     }
