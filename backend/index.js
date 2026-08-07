@@ -14,6 +14,12 @@ app.use(express.json());
 
 const pool = require('./db');
 
+// Función auxiliar para obtener la hora exacta de Venezuela (UTC-4)
+const getHoraVenezuela = () => {
+    const now = new Date();
+    return new Date(now.getTime() - (4 * 60 * 60 * 1000));
+};
+
 // =========================================================
 // 1. FUNCIÓN ESPÍA: REGISTRO DE AUDITORÍA (LOGS)
 // =========================================================
@@ -564,7 +570,7 @@ app.post('/asistencia', verificarToken, async (req, res) => {
 });
 
 // =========================================================
-// 10. ESTADÍSTICAS Y CORTE SEMANAL
+// 10. ESTADÍSTICAS Y CORTE SEMANAL (CORREGIDO HORA VENEZUELA Y CANDADO VIERNES 4 PM)
 // =========================================================
 app.get('/dashboard/stats', verificarToken, async (req, res) => {
     try {
@@ -636,20 +642,22 @@ app.get('/dashboard/stats', verificarToken, async (req, res) => {
 
 app.get('/corte-semanal/verificar', verificarToken, async (req, res) => {
     try {
+        // Hora de Venezuela (UTC-4)
         const now = new Date();
-        const day = now.getDay(); 
-        const hour = now.getHours();
+        const vetTime = new Date(now.getTime() - (4 * 60 * 60 * 1000));
+        const day = vetTime.getDay(); 
+        const hour = vetTime.getHours();
 
-        const esHoraDeCorte = (day === 5 && hour >= 16) || day === 6;
-        if (!esHoraDeCorte) return res.json({ pendiente: false });
+        // CANDADO ESTRICTO: ÚNICAMENTE los VIERNES (day === 5) después de las 4 PM (16:00)
+        const esViernesDespuesDe4PM = (day === 5 && hour >= 16);
+        if (!esViernesDespuesDe4PM) return res.json({ pendiente: false });
 
-        const offsetToSaturday = day === 6 ? 0 : day + 1;
-        const inicioSemana = new Date(now);
-        inicioSemana.setDate(now.getDate() - offsetToSaturday); 
+        const inicioSemana = new Date(vetTime);
+        inicioSemana.setDate(vetTime.getDate() - 5); 
         inicioSemana.setHours(0,0,0,0);
 
         const existeCorte = await pool.query(
-            'SELECT * FROM CorteSemanal WHERE creado_en >= $1',
+            'SELECT * FROM CorteSemanal WHERE fecha_inicio >= $1',
             [inicioSemana]
         );
 
@@ -781,12 +789,12 @@ app.post('/corte-semanal/ejecutar', verificarToken, async (req, res) => {
     }
 });
 
-// CRON JOB AUTOMÁTICO (VIERNES A LAS 11:59 PM)
-cron.schedule('59 23 * * 5', async () => {
+// CRON JOB AUTOMÁTICO EXACTO: Viernes a las 11:59 PM (Hora Venezuela = 03:59 UTC del sábado)
+cron.schedule('59 03 * * 6', async () => {
     console.log('⏰ Iniciando corte semanal automático del viernes a las 11:59 PM...');
     try {
         const resultadoReporte = await ejecutarCorteSemanal('Cron Automático 11:59PM');
-        await enviarCorreoReportes(resultadoResponse = resultadoReporte);
+        await enviarCorreoReportes(resultadoReporte);
         console.log('✅ Corte semanal automático, respaldo y correo ejecutados con éxito.');
     } catch (error) {
         console.error('❌ Error en el corte semanal automático:', error);
