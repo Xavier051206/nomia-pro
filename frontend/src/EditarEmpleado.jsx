@@ -56,7 +56,7 @@ function EditarEmpleado() {
       nombre: emp.nombre || '',
       apellido: emp.apellido || '',
       dni: emp.dni || '',
-      direccion: emp.direccion || '',
+      direccion: emp.direccion || '', 
       fechaContratacion: emp.fechacontratacion || '',
       puesto: emp.puesto || 'Cuadrillero',
       salarioBase: emp.salarioBase || emp.salariobase || '',
@@ -87,10 +87,10 @@ function EditarEmpleado() {
   const guardarCambios = async (e) => {
     e.preventDefault();
 
-    // Validar teléfono completo (11 dígitos)
+    // Validar teléfono completo
     const fullNumber = phonePrefix + phoneRest;
     if (phoneRest.length !== 7) {
-        alert("⚠️ El número de teléfono debe tener 7 dígitos después del prefijo.");
+        alert("⚠️ El número de teléfono debe tener EXACTAMENTE 7 dígitos después del prefijo.");
         return;
     }
 
@@ -113,7 +113,7 @@ function EditarEmpleado() {
 
       await axios.put(`${backendUrl}/empleados/${idAEditar}`, {
         ...empleadoEdit,
-        numeroTelf: fullNumber, // Unimos el prefijo con el resto antes de enviar
+        numeroTelf: fullNumber, // Unimos el teléfono antes de enviarlo
         personaID: empleadoEdit.personaID, 
         motivoSancion: motivoSancion,
         diasSuspension: diasSancion
@@ -167,6 +167,7 @@ function EditarEmpleado() {
                     <p className="text-xs text-gray-500 font-mono">C.I: {emp.dni}</p>
                   </div>
                   <div className="flex items-center gap-2">
+                    {/* ETIQUETAS DE COLORES RESTAURADAS */}
                     <span className={`px-2 py-1 rounded text-[10px] sm:text-xs font-bold ${
                       emp.estado === 'Activo' ? 'bg-green-100 text-green-700' : 
                       emp.estado === 'Sancionado' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
@@ -185,75 +186,114 @@ function EditarEmpleado() {
 
       {empleadoEdit && (
         <form onSubmit={guardarCambios} className="animate-fade-in space-y-4">
-          <div className="flex justify-between items-center mb-6 bg-slate-100 p-4 rounded-lg">
-            <h3 className="text-lg font-bold">Editando: {empleadoEdit.nombre} {empleadoEdit.apellido}</h3>
-            <button type="button" onClick={() => setEmpleadoEdit(null)} className="text-red-500 font-bold hover:underline">✖ Cancelar</button>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 bg-slate-100 p-4 rounded-lg gap-3">
+            <h3 className="text-lg sm:text-xl font-bold text-slate-800">Editando a: {empleadoEdit.nombre} {empleadoEdit.apellido}</h3>
+            <button type="button" onClick={() => setEmpleadoEdit(null)} disabled={cargando} className="text-red-500 font-bold hover:underline disabled:opacity-50 text-xs sm:text-sm">✖ Cancelar</button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          {/* INPUTS CON DISEÑO SUAVE Y REDONDEADO RESTAURADO */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
             <div>
-              <label className="text-xs font-bold text-gray-600 block mb-1">Nombre</label>
-              <input name="nombre" value={empleadoEdit.nombre} onChange={manejarCambio} required className="w-full p-2 border rounded" />
+              <label className="text-xs sm:text-sm font-semibold text-gray-600 block mb-1">Nombre</label>
+              <input name="nombre" value={empleadoEdit.nombre} onChange={manejarCambio} required disabled={cargando} className="w-full p-2.5 border rounded text-xs sm:text-sm disabled:bg-gray-100" />
             </div>
             <div>
-              <label className="text-xs font-bold text-gray-600 block mb-1">Apellido</label>
-              <input name="apellido" value={empleadoEdit.apellido} onChange={manejarCambio} required className="w-full p-2 border rounded" />
+              <label className="text-xs sm:text-sm font-semibold text-gray-600 block mb-1">Apellido</label>
+              <input name="apellido" value={empleadoEdit.apellido} onChange={manejarCambio} required disabled={cargando} className="w-full p-2.5 border rounded text-xs sm:text-sm disabled:bg-gray-100" />
             </div>
             <div>
-              <label className="text-xs font-bold text-gray-600 block mb-1">Cédula</label>
-              <input name="dni" value={empleadoEdit.dni} onChange={manejarCambio} required className="w-full p-2 border rounded" />
+              <label className="text-xs sm:text-sm font-semibold text-gray-600 block mb-1">Cédula</label>
+              <input name="dni" value={empleadoEdit.dni} onChange={manejarCambio} required disabled={cargando} className="w-full p-2.5 border rounded text-xs sm:text-sm font-mono disabled:bg-gray-100" />
             </div>
             
-            {/* NUEVO FORMATO DE TELÉFONO */}
+            {/* TELÉFONO SEPARADO INTEGRADO AL DISEÑO */}
             <div className="col-span-1 sm:col-span-2 md:col-span-1">
-              <label className="text-xs font-bold text-gray-600 block mb-1">Teléfono</label>
+              <label className="text-xs sm:text-sm font-semibold text-gray-600 block mb-1">Teléfono</label>
               <div className="flex gap-2">
-                <select value={phonePrefix} onChange={(e) => setPhonePrefix(e.target.value)} className="p-2 border rounded bg-white w-28 font-bold text-blue-800">
+                <select value={phonePrefix} onChange={(e) => setPhonePrefix(e.target.value)} disabled={cargando} className="p-2.5 border rounded bg-white w-24 sm:w-28 font-bold text-blue-800 text-xs sm:text-sm disabled:bg-gray-100 outline-none focus:ring-2 focus:ring-blue-500">
                     <option value="0212">0212</option>
                     <option value="0414">0414</option>
                     <option value="0416">0416</option>
-                    <option value="0212">0412</option>
+                    <option value="0412">0412</option>
                     <option value="0426">0426</option>
                     <option value="0424">0424</option>
                     <option value="0422">0422</option>
                 </select>
-                <input type="text" maxLength="7" value={phoneRest} onChange={(e) => setPhoneRest(e.target.value.replace(/\D/g, ''))} placeholder="1234567" className="flex-1 p-2 border rounded font-mono" />
+                <input type="text" maxLength="7" value={phoneRest} onChange={(e) => setPhoneRest(e.target.value.replace(/\D/g, ''))} placeholder="1234567" disabled={cargando} className="flex-1 p-2.5 border rounded font-mono text-xs sm:text-sm disabled:bg-gray-100 outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
             </div>
 
-            <div className="col-span-1 sm:col-span-2 md:col-span-1">
-              <label className="text-xs font-bold text-gray-600 block mb-1">Dirección</label>
-              <input name="direccion" value={empleadoEdit.direccion} onChange={manejarCambio} className="w-full p-2 border rounded" />
+            <div className="col-span-1 sm:col-span-2 md:col-span-2">
+              <label className="text-xs sm:text-sm font-semibold text-gray-600 block mb-1">Dirección</label>
+              <input name="direccion" value={empleadoEdit.direccion} onChange={manejarCambio} disabled={cargando} className="w-full p-2.5 border rounded text-xs sm:text-sm disabled:bg-gray-100" />
             </div>
 
             <div>
-              <label className="text-xs font-bold text-gray-600 block mb-1">Fecha Contratación</label>
-              <input type="date" name="fechaContratacion" value={empleadoEdit.fechaContratacion} onChange={manejarCambio} className="w-full p-2 border rounded" />
+              <label className="text-xs sm:text-sm font-semibold text-gray-600 block mb-1">Fecha Contratación</label>
+              <input type="date" name="fechaContratacion" value={empleadoEdit.fechaContratacion} onChange={manejarCambio} disabled={cargando} className="w-full p-2.5 border rounded text-xs sm:text-sm disabled:bg-gray-100 bg-white" />
             </div>
 
             <div>
-              <label className="text-xs font-bold text-gray-600 block mb-1">Salario Base ($)</label>
-              <input type="number" name="salarioBase" value={empleadoEdit.salarioBase} onChange={manejarCambio} required className="w-full p-2 border rounded" />
+              <label className="text-xs sm:text-sm font-semibold text-gray-600 block mb-1">Puesto</label>
+              <select name="puesto" value={empleadoEdit.puesto} onChange={manejarCambio} disabled={cargando} className="w-full p-2.5 border rounded text-xs sm:text-sm bg-white disabled:bg-gray-100">
+                <option value="Supervisor">Supervisor</option>
+                <option value="Caporal">Caporal</option>
+                <option value="Cuadrillero">Cuadrillero</option>
+                <option value="Cocinero">Cocinero</option>
+                <option value="Seguridad">Seguridad</option>
+                <option value="Paramédico">Paramédico</option>
+                <option value="Depositario">Depositario</option>
+                <option value="Coordinador">Coordinador</option>
+              </select>
             </div>
-            
+
             <div>
-                <label className="text-xs font-bold text-gray-600 block mb-1">Estado</label>
-                <select name="estado" value={empleadoEdit.estado} onChange={manejarCambio} className="w-full p-2 border rounded bg-white">
-                    <option value="Activo">Activo</option>
-                    <option value="Inactivo">Inactivo</option>
-                    <option value="Vetado">Vetado</option>
-                    <option value="Sancionado">Sancionado</option>
-                </select>
+              <label className="text-xs sm:text-sm font-semibold text-gray-600 block mb-1">Salario Base ($)</label>
+              <input type="number" step="0.01" min="0" name="salarioBase" value={empleadoEdit.salarioBase} onChange={manejarCambio} required disabled={cargando} className="w-full p-2.5 border rounded text-xs sm:text-sm disabled:bg-gray-100 text-emerald-700 font-bold" />
             </div>
             
             <div className="col-span-1 sm:col-span-2 md:col-span-3">
-              <label className="text-xs font-bold text-gray-600 block mb-1">N° de Cuenta Bancaria (20 dígitos)</label>
-              <input type="text" value={empleadoEdit.cuentaBancaria} onChange={manejarCuentaBancaria} className="w-full p-2 border rounded font-mono" />
+              <label className="text-xs sm:text-sm font-semibold text-gray-600 block mb-1">N° de Cuenta Bancaria (20 dígitos)</label>
+              <input 
+                type="text" 
+                placeholder="01020000000000000000" 
+                value={empleadoEdit.cuentaBancaria} 
+                onChange={manejarCuentaBancaria} 
+                disabled={cargando}
+                className={`w-full p-2.5 border rounded outline-none focus:ring-2 focus:ring-blue-500 font-mono tracking-widest text-xs sm:text-sm disabled:bg-gray-100 ${
+                  empleadoEdit.cuentaBancaria?.length === 20 ? 'border-green-400 bg-green-50' : 
+                  empleadoEdit.cuentaBancaria?.length > 0 ? 'border-red-400 bg-red-50' : ''
+                }`}
+              />
             </div>
           </div>
 
-          <button type="submit" className="w-full bg-blue-700 text-white font-bold py-3 rounded-lg hover:bg-blue-800 transition">
-            {cargando ? '💾 Guardando...' : '💾 Guardar Cambios'}
+          {/* CAJA NARANJA CON EMOJIS RESTAURADA */}
+          <div className="bg-orange-50 p-4 rounded-xl border border-orange-200 mb-6 mt-6">
+             <label className="text-xs sm:text-sm font-bold text-orange-800 block mb-2">Estado Actual del Trabajador</label>
+             <select name="estado" value={empleadoEdit.estado} onChange={manejarCambio} disabled={cargando} className="w-full p-2.5 sm:p-3 border rounded-lg bg-white font-bold outline-none focus:ring-2 focus:ring-orange-400 text-xs sm:text-sm disabled:bg-gray-100">
+                <option value="Activo">🟢 Activo</option>
+                <option value="Inactivo">⚪ Inactivo</option>
+                <option value="Vetado">🔴 Vetado</option>
+                <option value="Sancionado">🟡 Sancionado</option>
+             </select>
+
+             {empleadoEdit.estado === 'Sancionado' && (
+               <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-yellow-100 rounded-lg border border-yellow-300">
+                   <div>
+                     <label className="block text-xs font-bold mb-1 text-yellow-800">Días de Suspensión:</label>
+                     <input type="number" min="1" placeholder="Ej: 3" value={diasSancion} onChange={e=>setDiasSancion(e.target.value)} required disabled={cargando} className="w-full p-2 rounded border text-xs sm:text-sm disabled:bg-gray-100" />
+                   </div>
+                   <div>
+                     <label className="block text-xs font-bold mb-1 text-yellow-800">Motivo de la sanción:</label>
+                     <input type="text" placeholder="Ej: Llegadas tardías..." value={motivoSancion} onChange={e=>setMotivoSancion(e.target.value)} required disabled={cargando} className="w-full p-2 rounded border text-xs sm:text-sm disabled:bg-gray-100" />
+                   </div>
+               </div>
+             )}
+          </div>
+
+          <button type="submit" disabled={cargando} className="w-full bg-blue-700 text-white font-bold py-3 rounded-lg hover:bg-blue-800 transition shadow-lg disabled:opacity-70 text-xs sm:text-sm">
+            {cargando ? '💾 Guardando...' : '💾 Guardar Cambios en el Sistema'}
           </button>
         </form>
       )}
