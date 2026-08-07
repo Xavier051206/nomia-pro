@@ -65,6 +65,14 @@ function ListaEmpleados() {
     }
   };
 
+  // FUNCIÓN PARA FORMATEAR CUENTA BANCARIA EN BLOQUES DE 4 DÍGITOS CON GUIONES (XXXX-XXXX-XXXX-XXXX-XXXX)
+  const formatearCuentaBancaria = (cuenta) => {
+    if (!cuenta) return "No registrada";
+    const limpia = String(cuenta).replace(/\D/g, '');
+    if (limpia.length !== 20) return limpia; 
+    return limpia.match(/.{1,4}/g)?.join('-') || limpia;
+  };
+
   const calcularTiempoTrabajando = (fechaString) => {
     if (!fechaString || fechaString === 'No registrada') return "No registrada";
     const inicio = new Date(fechaString);
@@ -206,7 +214,7 @@ function ListaEmpleados() {
         (emp.puesto || '').toUpperCase(),
         (emp.cuadrilla || 'Sin Cuadrilla').toUpperCase(),
         emp.estado,
-        emp.cuentabancaria || "No registrada",
+        formatearCuentaBancaria(emp.cuentabancaria),
         baseNum,
         emp.fechacontratacion || "No registrada", 
         calcularTiempoTrabajando(emp.fechacontratacion), 
@@ -235,7 +243,7 @@ function ListaEmpleados() {
     sheet.getColumn('F').width = 15;
     sheet.getColumn('G').width = 16;
     sheet.getColumn('H').width = 12;
-    sheet.getColumn('I').width = 24;
+    sheet.getColumn('I').width = 26; 
     sheet.getColumn('J').width = 16; 
     sheet.getColumn('K').width = 22; 
     sheet.getColumn('L').width = 22; 
@@ -274,7 +282,6 @@ function ListaEmpleados() {
     
     const colLetters = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T'];
 
-    // Función auxiliar para insertar el título amarillo grande en cada bloque
     const escribirTituloAmarillo = (filaNum) => {
       sheet.mergeCells(`A${filaNum}:T${filaNum}`); 
       const titleCell = sheet.getCell(`A${filaNum}`);
@@ -285,7 +292,6 @@ function ListaEmpleados() {
       sheet.getRow(filaNum).height = 25;
     };
 
-    // Función auxiliar para insertar la cabecera completa de columnas
     const escribirCabeceraTabla = (filaNum) => {
       sheet.getRow(filaNum).height = 28;
       sheet.getRow(filaNum + 1).height = 18;
@@ -312,9 +318,6 @@ function ListaEmpleados() {
       });
     };
 
-    // ==========================================
-    // LÓGICA DE AGRUPACIÓN Y SEPARACIÓN POR 7 FILAS
-    // ==========================================
     const staff = todosLosEmpleados.filter(emp => !emp.cuadrilla || emp.cuadrilla === 'Sin Cuadrilla');
     const cuadrillas = todosLosEmpleados.filter(emp => emp.cuadrilla && emp.cuadrilla !== 'Sin Cuadrilla');
 
@@ -359,16 +362,13 @@ function ListaEmpleados() {
         });
     });
 
-    let currentRow = 1; // Arrancamos en la fila 1
+    let currentRow = 1; 
     let indexGlobal = 1;
 
     gruposParaExportar.forEach((grupo, idxGrupo) => {
-        
-        // 1. TÍTULO AMARILLO GRANDE REPETIDO EN CADA BLOQUE
         escribirTituloAmarillo(currentRow);
         currentRow++;
 
-        // 2. TÍTULO OSCURO DEL GRUPO O CUADRILLA
         sheet.mergeCells(`A${currentRow}:T${currentRow}`);
         const cellTitle = sheet.getCell(`A${currentRow}`);
         cellTitle.value = grupo.nombre;
@@ -378,11 +378,13 @@ function ListaEmpleados() {
         sheet.getRow(currentRow).height = 22;
         currentRow++;
 
-        // 3. CABECERA DE DÍAS Y MONTOS
         escribirCabeceraTabla(currentRow);
         currentRow += 2; 
 
-        // 4. EMPLEADOS DEL GRUPO
+        // Acumuladores de subtotales para este grupo
+        let sumaTotalDolaresGrupo = 0;
+        let sumaTotalBolivaresGrupo = 0;
+
         grupo.empleados.forEach((emp) => {
           const baseNum = Number(emp.salariobase || emp.salarioBase) || 0; 
           const salarioDiario = baseNum / 6; 
@@ -401,6 +403,10 @@ function ListaEmpleados() {
           const pagoFinal = pagoDolares < 0 ? 0 : pagoDolares;
           const pagoBolivares = pagoFinal * tasa; 
           const porcentajeAsistencia = (diasTrabajados / 6); 
+
+          // Sumamos al acumulador del grupo
+          sumaTotalDolaresGrupo += pagoFinal;
+          sumaTotalBolivaresGrupo += pagoBolivares;
           
           const nombreCompleto = `${emp.nombre || ''} ${emp.apellido || ''}`.trim().toUpperCase();
           const puestoLimpio = (emp.puesto || '').toUpperCase();
@@ -424,7 +430,7 @@ function ListaEmpleados() {
             emp.cuentabancaria && String(emp.cuentabancaria).length >= 4 ? String(emp.cuentabancaria).substring(0, 4) : "",
             emp.numerotelf || "",
             emp.dni || "", 
-            emp.cuentabancaria || "",
+            formatearCuentaBancaria(emp.cuentabancaria), 
             "" 
           ];
 
@@ -443,9 +449,42 @@ function ListaEmpleados() {
           currentRow++;
         });
 
-        // 5. SALTO EXACTO DE 7 FILAS VACÍAS ENTRE CADA GRUPO
+        // =========================================================
+        // FILA DE SUBTOTALES PARA EL GRUPO O CUADRILLA ACTUAL
+        // =========================================================
+        sheet.mergeCells(`A${currentRow}:M${currentRow}`);
+        const subtotalLabelCell = sheet.getCell(`A${currentRow}`);
+        subtotalLabelCell.value = `TOTAL ${grupo.nombre}:`;
+        subtotalLabelCell.font = { bold: true, size: 9, name: 'Arial' };
+        subtotalLabelCell.alignment = { horizontal: 'right', vertical: 'middle' };
+        subtotalLabelCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'EAEDED' } };
+
+        // Celda de Subtotal en Dólares ($)
+        const subtotalDolaresCell = sheet.getCell(`N${currentRow}`);
+        subtotalDolaresCell.value = sumaTotalDolaresGrupo;
+        subtotalDolaresCell.font = { bold: true, size: 9, name: 'Arial' };
+        subtotalDolaresCell.numFmt = '#,##0.00';
+        subtotalDolaresCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        subtotalDolaresCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'EAEDED' } };
+
+        // Celda de Subtotal en Bolívares (Bs)
+        const subtotalBolivaresCell = sheet.getCell(`O${currentRow}`);
+        subtotalBolivaresCell.value = sumaTotalBolivaresGrupo;
+        subtotalBolivaresCell.font = { bold: true, size: 9, name: 'Arial' };
+        subtotalBolivaresCell.numFmt = '#,##0.00';
+        subtotalBolivaresCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        subtotalBolivaresCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'EAEDED' } };
+
+        // Dar bordes a toda la fila de subtotal hasta la columna T
+        for (let colIdx = 1; colIdx <= 20; colIdx++) {
+            const colLetter = colLetters[colIdx - 1];
+            sheet.getCell(`${colLetter}${currentRow}`).border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+        }
+        sheet.getRow(currentRow).height = 22;
+        currentRow++;
+
         if (idxGrupo < gruposParaExportar.length - 1) {
-            currentRow += 7; 
+            currentRow += 7; // Salto de 7 filas entre grupos
         }
     });
 
@@ -462,7 +501,7 @@ function ListaEmpleados() {
     sheet.getColumn('P').width = 6;   
     sheet.getColumn('Q').width = 13;  
     sheet.getColumn('R').width = 11;  
-    sheet.getColumn('S').width = 21;  
+    sheet.getColumn('S').width = 23;  
     sheet.getColumn('T').width = 10;  
 
     const buffer = await workbook.xlsx.writeBuffer();
@@ -642,7 +681,7 @@ function ListaEmpleados() {
                     <td className="p-3 sm:p-4 border-r border-slate-200 text-center">
                       {emp.cuentabancaria ? (
                         <span className={`font-mono text-[11px] sm:text-xs font-bold px-2.5 py-1.5 rounded-md border ${cuentaValida ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
-                          {emp.cuentabancaria}
+                          {formatearCuentaBancaria(emp.cuentabancaria)}
                         </span>
                       ) : (
                         <span className="text-[10px] sm:text-[11px] text-gray-400 font-semibold bg-gray-100 px-2.5 py-1 rounded-md border border-gray-200">

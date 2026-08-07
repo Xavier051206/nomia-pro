@@ -27,6 +27,7 @@ function AgregarEmpleado() {
     }).join(' ');
   };
 
+  // FUNCIÓN INTELIGENTE: Limpia y guarda solo los números en el estado (para el backend)
   const manejarCuentaBancaria = (e) => {
     let val = e.target.value.replace(/\D/g, ''); 
     if (val.length > 0 && val[0] !== '0') {
@@ -36,6 +37,13 @@ function AgregarEmpleado() {
       val = val.slice(0, 20); 
     }
     setCuentaBancaria(val);
+  };
+
+  // Función auxiliar para mostrar visualmente los guiones en tiempo real en el input
+  const formatearVisualConGuiones = (valor) => {
+    if (!valor) return '';
+    const limpio = String(valor).replace(/\D/g, '');
+    return limpio.match(/.{1,4}/g)?.join('-') || limpio;
   };
 
   const handleSubmit = async (e) => {
@@ -81,7 +89,7 @@ function AgregarEmpleado() {
         fechaNacimiento: '1990-01-01',
         puesto: puesto,
         salarioBase: parseFloat(salarioBase),
-        cuentaBancaria: cuentaBancaria,
+        cuentaBancaria: cuentaBancaria, // Se envían los 20 dígitos limpios por debajo
         fechaContratacion: new Date().toISOString().split('T')[0],
         // Si no es caporal ni cuadrillero, forzamos a que envíe "Sin Cuadrilla"
         cuadrilla: (puesto === 'Caporal' || puesto === 'Cuadrillero') ? cuadrilla : 'Sin Cuadrilla'
@@ -197,12 +205,14 @@ function AgregarEmpleado() {
           <input type="number" placeholder="Salario Base ($)" value={salarioBase} onChange={e => setSalarioBase(e.target.value)} required min="1" step="0.01" className="flex-1 p-3 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-sm sm:text-base" />
         </div>
         
+        {/* CUENTA BANCARIA CON GUIONES VISUALES AUTOMÁTICOS */}
         <div className="col-span-1 md:col-span-2 relative mb-4">
           <input 
             type="text" 
-            placeholder="Cuenta Bancaria (Ej: 01020000000000000000)" 
-            value={cuentaBancaria} 
+            placeholder="0102-0000-0000-0000-0000" 
+            value={formatearVisualConGuiones(cuentaBancaria)} 
             onChange={manejarCuentaBancaria} 
+            maxLength={24} // 20 dígitos + 4 guiones
             className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none font-mono tracking-widest text-xs sm:text-sm ${
               cuentaBancaria.length === 20 ? 'border-green-400 bg-green-50 text-green-800' : 
               cuentaBancaria.length > 0 ? 'border-red-400 bg-red-50 text-red-800' : ''

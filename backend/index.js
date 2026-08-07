@@ -238,7 +238,6 @@ app.post('/empleados', verificarToken, async (req, res) => {
             }
         }
 
-        // LÓGICA DE CUADRILLAS (Candados de seguridad)
         let cuadrillaFinal = cuadrilla || 'Sin Cuadrilla';
         if (puesto !== 'Caporal' && puesto !== 'Cuadrillero') {
             cuadrillaFinal = 'Sin Cuadrilla'; 
@@ -396,7 +395,6 @@ app.put('/empleados/:id', verificarToken, async (req, res) => {
 
         await pool.query('COMMIT');
         
-        // LOG DETALLADO: Muestra claramente el nuevo puesto, cuadrilla y estado modificado
         await registrarAuditoria(
             req.usuario.username, 
             'EDITAR_EMPLEADO', 
@@ -664,6 +662,9 @@ app.get('/corte-semanal/verificar', verificarToken, async (req, res) => {
     }
 });
 
+// =========================================================
+// 11. CORREO Y REPORTE COMPLETO (AUDITORÍA, NÓMINA, SANCIONES Y ASISTENCIAS)
+// =========================================================
 const ejecutarCorteSemanal = async (usuario = 'Sistema Automático') => {
     const client = await pool.connect();
     try {
@@ -679,8 +680,41 @@ const ejecutarCorteSemanal = async (usuario = 'Sistema Automático') => {
         const insertRes = await client.query(
             `INSERT INTO CorteSemanal (fecha_inicio, fecha_fin, total_activos, total_sancionados, porcentaje_asistencia, detalles) 
              VALUES ($1, $1, $2, $3, $4, $5) RETURNING *`,
-            [fechaHoy, totalActivos, totalSancionados, 0.00, 'Corte semanal y limpieza operativa por ' + usuario]
+            [fechaHoy, totalActivos, totalSancionados, 0.00, 'Corte semanal y respaldo general por ' + usuario]
         );
+
+        // Recopilamos absolutamente TODO para el reporte de correo:
+        // 1. Empleados y sus asistencias recientes
+        const empQuery = await client.query(`
+            SELECT e.empleadoID, p.nombre, p.apellido, p.dni, e.puesto, e.estado, e.cuadrilla, e.salarioBase,
+            (SELECT json_agg(json_build_object('fecha', a.fecha, 'estado', a.estado, 'observacion', a.observacion)) 
+             FROM Asistencia a WHERE a.empleadoID = e.empleadoID) as asistencias
+            FROM Empleado e JOIN Persona p ON e.personaid = p.personalid
+        `);
+
+        // 2. Sanciones y suspensiones activas o recientes
+        const sancQuery = await client.query(`
+            SELECT s.sancionID, p.nombre, p.apellido, s.fecha, s.motivo, s.dias_suspension
+            FROM Sancion s 
+            JOIN Empleado e ON s.empleadoID = e.empleadoID 
+            JOIN Persona p ON e.personaid = p.personalid
+            ORDER BY s.fecha DESC LIMIT 30
+        `);
+
+        // 3. Registros de Auditoría (Logs) de la semana
+        const auditQuery = await client.query(`
+            SELECT usuario, accion, detalles, fecha 
+            FROM Auditoria 
+            ORDER BY fecha DESC LIMIT 50
+        `);
+
+        // Estructura consolidada del reporte completo
+        const reporteConsolidado = {
+            corte: insertRes.rows[0],
+            empleados: empQuery.rows,
+            sanciones_suspensiones: sancQuery.rows,
+            auditoria_logs: auditQuery.rows
+        };
 
         try {
             await client.query('DELETE FROM Queja');
@@ -689,8 +723,8 @@ const ejecutarCorteSemanal = async (usuario = 'Sistema Automático') => {
         }
 
         await client.query('COMMIT');
-        await registrarAuditoria(usuario, 'CORTE_SEMANAL_Y_LIMPIEZA', 'Se ejecutó el corte semanal, se respaldaron los datos y se limpió el panel para la próxima semana.');
-        return insertRes.rows[0];
+        await registrarAuditoria(usuario, 'CORTE_SEMANAL_Y_REPORTE', 'Se ejecutó el corte semanal y se consolidó el reporte general operativo.');
+        return reporteConsolidado;
     } catch (error) {
         await client.query('ROLLBACK');
         throw error;
@@ -699,12 +733,47 @@ const ejecutarCorteSemanal = async (usuario = 'Sistema Automático') => {
     }
 };
 
+const enviarCorreoReportes = async (datosReporte) => {
+    try {
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: process.env.EMAIL_USER, 
+                pass: process.env.EMAIL_PASS 
+            }
+        });
+
+        // Convertimos el reporte completo a un archivo adjunto JSON adjuntado al correo
+        const jsonReporteBuffer = Buffer.from(JSON.stringify(datosReporte, null, 2), 'utf-8');
+
+        await transporter.sendMail({
+            from: '"Sistema NóminaPro" <' + process.env.EMAIL_USER + '>',
+            to: process.env.EMAIL_TO || process.env.EMAIL_USER,
+            subject: '📊 Reporte y Corte Semanal Consolidado - NóminaPro',
+            text: 'Hola. Adjunto encontrarás el reporte consolidado del corte semanal. Este archivo incluye todos los registros de empleados, asistencias, faltas justificadas, suspensiones activas con sus días restantes, y la auditoría (logs) completa del sistema.',
+            attachments: [
+                {
+                    filename: `Reporte_Consolidado_Semanal_${new Date().toISOString().split('T')[0]}.json`,
+                    content: jsonReporteBuffer
+                }
+            ]
+        });
+        console.log('📧 Correo con el reporte semanal consolidado enviado con éxito.');
+    } catch (error) {
+        console.error('❌ Error enviando correo automático:', error);
+    }
+};
+
 app.post('/corte-semanal/ejecutar', verificarToken, async (req, res) => {
     try {
-        const resultadoCorte = await ejecutarCorteSemanal(req.usuario.username);
+        const resultadoReporte = await ejecutarCorteSemanal(req.usuario.username);
+        
+        // Intentamos enviar el correo de inmediato al hacer el corte manual o automático
+        await enviarCorreoReportes(resultadoReporte);
+
         res.json({ 
-            mensaje: '¡Corte realizado con éxito! La data principal (empleados, sanciones y vetados) está a salvo, y el panel de reportes quedó limpio para el próximo sábado.',
-            datos: resultadoCorte
+            mensaje: '¡Corte realizado y correo enviado con éxito! Se han consolidado todos los registros, logs, suspensiones y asistencias.',
+            datos: resultadoReporte.corte
         });
     } catch (error) {
         console.error("Error al ejecutar corte semanal:", error);
@@ -712,38 +781,13 @@ app.post('/corte-semanal/ejecutar', verificarToken, async (req, res) => {
     }
 });
 
-// =========================================================
-// 11. CORREO Y CRON JOB AUTOMÁTICO (VIERNES A LAS 11:59 PM)
-// =========================================================
-const enviarCorreoReportes = async (archivos) => {
-    try {
-        const transporter = nodemailer.createTransport({
-            service: 'gmail',
-            auth: {
-                user: process.env.EMAIL_USER || 'tu_correo@gmail.com', 
-                pass: process.env.EMAIL_PASS || 'tu_contraseña_de_aplicacion'
-            }
-        });
-
-        await transporter.sendMail({
-            from: '"Sistema NóminaPro" <tu_correo@gmail.com>',
-            to: process.env.EMAIL_TO || 'tu_correo@gmail.com',
-            subject: 'Corte Semanal Automático - NóminaPro',
-            text: 'Adjunto los reportes del corte semanal automático.',
-            attachments: archivos || []
-        });
-        console.log('📧 Correo de reporte enviado con éxito.');
-    } catch (error) {
-        console.error('❌ Error enviando correo automático:', error);
-    }
-};
-
+// CRON JOB AUTOMÁTICO (VIERNES A LAS 11:59 PM)
 cron.schedule('59 23 * * 5', async () => {
     console.log('⏰ Iniciando corte semanal automático del viernes a las 11:59 PM...');
     try {
-        const resultadoCorte = await ejecutarCorteSemanal('Cron Automático 11:59PM');
-        await enviarCorreoReportes();
-        console.log('✅ Corte semanal automático y exportación ejecutados con éxito.');
+        const resultadoReporte = await ejecutarCorteSemanal('Cron Automático 11:59PM');
+        await enviarCorreoReportes(resultadoResponse = resultadoReporte);
+        console.log('✅ Corte semanal automático, respaldo y correo ejecutados con éxito.');
     } catch (error) {
         console.error('❌ Error en el corte semanal automático:', error);
     }

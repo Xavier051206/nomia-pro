@@ -46,7 +46,6 @@ function EditarEmpleado() {
   const seleccionarEmpleado = (emp) => {
     const fullTelf = emp.numeroTelf || emp.numerotelf || '04140000000';
     
-    // Separamos el prefijo y el resto al seleccionar
     setPhonePrefix(fullTelf.slice(0, 4));
     setPhoneRest(fullTelf.slice(4));
 
@@ -62,7 +61,7 @@ function EditarEmpleado() {
       salarioBase: emp.salarioBase || emp.salariobase || '',
       cuentaBancaria: emp.cuentabancaria || '', 
       estado: emp.estado || 'Activo',
-      cuadrilla: emp.cuadrilla || 'Sin Cuadrilla' // NUEVO: Cargamos la cuadrilla actual
+      cuadrilla: emp.cuadrilla || 'Sin Cuadrilla'
     });
     setMotivoSancion('');
     setDiasSancion('');
@@ -74,8 +73,9 @@ function EditarEmpleado() {
     setEmpleadoEdit({ ...empleadoEdit, [e.target.name]: e.target.value });
   };
 
+  // FUNCIÓN INTELIGENTE: Formatea con guiones visualmente mientras escribes, manteniendo los números limpios
   const manejarCuentaBancaria = (e) => {
-    let val = e.target.value.replace(/\D/g, ''); 
+    let val = e.target.value.replace(/\D/g, ''); // Solo números limpios
     if (val.length > 0 && val[0] !== '0') {
       val = '0' + val; 
     }
@@ -85,10 +85,16 @@ function EditarEmpleado() {
     setEmpleadoEdit({ ...empleadoEdit, cuentaBancaria: val });
   };
 
+  // Función auxiliar para mostrar la cuenta con guiones en el input de texto dinámicamente
+  const formatearVisualConGuiones = (valor) => {
+    if (!valor) return '';
+    const limpio = String(valor).replace(/\D/g, '');
+    return limpio.match(/.{1,4}/g)?.join('-') || limpio;
+  };
+
   const guardarCambios = async (e) => {
     e.preventDefault();
 
-    // Validar teléfono completo
     const fullNumber = phonePrefix + phoneRest;
     if (phoneRest.length !== 7) {
         alert("⚠️ El número de teléfono debe tener EXACTAMENTE 7 dígitos después del prefijo.");
@@ -104,7 +110,6 @@ function EditarEmpleado() {
       return;
     }
 
-    // Validar que si es cuadrillero o caporal, haya seleccionado una cuadrilla
     if ((empleadoEdit.puesto === 'Caporal' || empleadoEdit.puesto === 'Cuadrillero') && (!empleadoEdit.cuadrilla || empleadoEdit.cuadrilla === 'Sin Cuadrilla')) {
       alert('⚠️ Error: Debes asignar una Cuadrilla válida para este cargo.');
       return;
@@ -120,11 +125,10 @@ function EditarEmpleado() {
 
       await axios.put(`${backendUrl}/empleados/${idAEditar}`, {
         ...empleadoEdit,
-        numeroTelf: fullNumber, // Unimos el teléfono antes de enviarlo
+        numeroTelf: fullNumber, 
         personaID: empleadoEdit.personaID, 
         motivoSancion: motivoSancion,
         diasSuspension: diasSancion,
-        // Forzamos "Sin Cuadrilla" si le cambian el puesto a Staff
         cuadrilla: (empleadoEdit.puesto === 'Caporal' || empleadoEdit.puesto === 'Cuadrillero') ? empleadoEdit.cuadrilla : 'Sin Cuadrilla'
       }, {
         headers: { Authorization: `Bearer ${token}` }
@@ -176,7 +180,6 @@ function EditarEmpleado() {
                     <p className="text-xs text-gray-500 font-mono">C.I: {emp.dni}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    {/* ETIQUETAS DE COLORES RESTAURADAS */}
                     <span className={`px-2 py-1 rounded text-[10px] sm:text-xs font-bold ${
                       emp.estado === 'Activo' ? 'bg-green-100 text-green-700' : 
                       emp.estado === 'Sancionado' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
@@ -200,7 +203,6 @@ function EditarEmpleado() {
             <button type="button" onClick={() => setEmpleadoEdit(null)} disabled={cargando} className="text-red-500 font-bold hover:underline disabled:opacity-50 text-xs sm:text-sm">✖ Cancelar</button>
           </div>
 
-          {/* INPUTS CON DISEÑO SUAVE Y REDONDEADO RESTAURADO */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
             <div>
               <label className="text-xs sm:text-sm font-semibold text-gray-600 block mb-1">Nombre</label>
@@ -215,7 +217,6 @@ function EditarEmpleado() {
               <input name="dni" value={empleadoEdit.dni} onChange={manejarCambio} required disabled={cargando} className="w-full p-2.5 border rounded text-xs sm:text-sm font-mono disabled:bg-gray-100" />
             </div>
             
-            {/* TELÉFONO SEPARADO INTEGRADO AL DISEÑO */}
             <div className="col-span-1 sm:col-span-2 md:col-span-1">
               <label className="text-xs sm:text-sm font-semibold text-gray-600 block mb-1">Teléfono</label>
               <div className="flex gap-2">
@@ -257,7 +258,6 @@ function EditarEmpleado() {
               </select>
             </div>
 
-            {/* LÓGICA MÁGICA: Aparece o desaparece según el puesto */}
             {(empleadoEdit.puesto === 'Caporal' || empleadoEdit.puesto === 'Cuadrillero') ? (
               <div>
                 <label className="text-xs sm:text-sm font-semibold text-gray-600 block mb-1">Asignar Cuadrilla</label>
@@ -293,14 +293,16 @@ function EditarEmpleado() {
               <input type="number" step="0.01" min="0" name="salarioBase" value={empleadoEdit.salarioBase} onChange={manejarCambio} required disabled={cargando} className="w-full p-2.5 border rounded text-xs sm:text-sm disabled:bg-gray-100 text-emerald-700 font-bold" />
             </div>
             
+            {/* CUENTA BANCARIA CON FORMATO DINÁMICO DE GUIONES EN TIEMPO REAL */}
             <div className="col-span-1 sm:col-span-2 md:col-span-3">
               <label className="text-xs sm:text-sm font-semibold text-gray-600 block mb-1">N° de Cuenta Bancaria (20 dígitos)</label>
               <input 
                 type="text" 
-                placeholder="01020000000000000000" 
-                value={empleadoEdit.cuentaBancaria} 
+                placeholder="0102-0000-0000-0000-0000" 
+                value={formatearVisualConGuiones(empleadoEdit.cuentaBancaria)} 
                 onChange={manejarCuentaBancaria} 
                 disabled={cargando}
+                maxLength={24} // 20 dígitos + 4 guiones
                 className={`w-full p-2.5 border rounded outline-none focus:ring-2 focus:ring-blue-500 font-mono tracking-widest text-xs sm:text-sm disabled:bg-gray-100 ${
                   empleadoEdit.cuentaBancaria?.length === 20 ? 'border-green-400 bg-green-50' : 
                   empleadoEdit.cuentaBancaria?.length > 0 ? 'border-red-400 bg-red-50' : ''
@@ -309,7 +311,6 @@ function EditarEmpleado() {
             </div>
           </div>
 
-          {/* CAJA NARANJA CON EMOJIS RESTAURADA */}
           <div className="bg-orange-50 p-4 rounded-xl border border-orange-200 mb-6 mt-6">
              <label className="text-xs sm:text-sm font-bold text-orange-800 block mb-2">Estado Actual del Trabajador</label>
              <select name="estado" value={empleadoEdit.estado} onChange={manejarCambio} disabled={cargando} className="w-full p-2.5 sm:p-3 border rounded-lg bg-white font-bold outline-none focus:ring-2 focus:ring-orange-400 text-xs sm:text-sm disabled:bg-gray-100">
