@@ -264,15 +264,6 @@ function ListaEmpleados() {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Nómina Oficial', { views: [{ showGridLines: false }] });
 
-    // Título Principal Arriba
-    sheet.mergeCells('A1:T1'); 
-    const titleCell = sheet.getCell('A1');
-    titleCell.value = `ASISTENCIA DEL MES DE ${mesActual} ${anioActual} - SEMANA ${numeroSemana} (TASA BCV: ${tasa.toFixed(2)} Bs)`;
-    titleCell.font = { bold: true, size: 11, name: 'Arial' };
-    titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
-    titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF00' } }; 
-    sheet.getRow(1).height = 25;
-
     const headers = [
       "#", "NOMBRES Y APELLIDOS", "CEDULA", "OCUPACION", 
       "SABADO", "LUNES", "MARTES", "MIERCOLES", "JUEVES", "VIERNES", 
@@ -283,7 +274,18 @@ function ListaEmpleados() {
     
     const colLetters = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T'];
 
-    // Función auxiliar para insertar la cabecera completa de columnas (días, montos, etc.)
+    // Función auxiliar para insertar el título amarillo grande en cada bloque
+    const escribirTituloAmarillo = (filaNum) => {
+      sheet.mergeCells(`A${filaNum}:T${filaNum}`); 
+      const titleCell = sheet.getCell(`A${filaNum}`);
+      titleCell.value = `ASISTENCIA DEL MES DE ${mesActual} ${anioActual} - SEMANA ${numeroSemana} (TASA BCV: ${tasa.toFixed(2)} Bs)`;
+      titleCell.font = { bold: true, size: 11, name: 'Arial' };
+      titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF00' } }; 
+      sheet.getRow(filaNum).height = 25;
+    };
+
+    // Función auxiliar para insertar la cabecera completa de columnas
     const escribirCabeceraTabla = (filaNum) => {
       sheet.getRow(filaNum).height = 28;
       sheet.getRow(filaNum + 1).height = 18;
@@ -339,7 +341,6 @@ function ListaEmpleados() {
 
     const gruposParaExportar = [];
     
-    // 1. Staff (Primero los roles que no sean cuadrilla ni caporal)
     Object.keys(staffPorPuesto).sort().forEach(puesto => {
         gruposParaExportar.push({
             nombre: `GRUPO: ${puesto.toUpperCase()}`,
@@ -347,7 +348,6 @@ function ListaEmpleados() {
         });
     });
     
-    // 2. Cuadrillas en orden numérico
     Object.keys(cuadrillasMap).sort((a, b) => {
         const numA = parseInt(a.replace(/\D/g, '')) || 0;
         const numB = parseInt(b.replace(/\D/g, '')) || 0;
@@ -359,12 +359,16 @@ function ListaEmpleados() {
         });
     });
 
-    let currentRow = 3; // Arrancamos en la fila 3
+    let currentRow = 1; // Arrancamos en la fila 1
     let indexGlobal = 1;
 
     gruposParaExportar.forEach((grupo, idxGrupo) => {
         
-        // 1. Título del grupo (Fondo oscuro)
+        // 1. TÍTULO AMARILLO GRANDE REPETIDO EN CADA BLOQUE
+        escribirTituloAmarillo(currentRow);
+        currentRow++;
+
+        // 2. TÍTULO OSCURO DEL GRUPO O CUADRILLA
         sheet.mergeCells(`A${currentRow}:T${currentRow}`);
         const cellTitle = sheet.getCell(`A${currentRow}`);
         cellTitle.value = grupo.nombre;
@@ -374,11 +378,11 @@ function ListaEmpleados() {
         sheet.getRow(currentRow).height = 22;
         currentRow++;
 
-        // 2. Escribir la cabecera completa con los días (Sáb, Lun, Mar...) para este bloque
+        // 3. CABECERA DE DÍAS Y MONTOS
         escribirCabeceraTabla(currentRow);
-        currentRow += 2; // Ocupa 2 filas (la 2 y la 3 del bloque de cabecera)
+        currentRow += 2; 
 
-        // 3. Empleados del grupo
+        // 4. EMPLEADOS DEL GRUPO
         grupo.empleados.forEach((emp) => {
           const baseNum = Number(emp.salariobase || emp.salarioBase) || 0; 
           const salarioDiario = baseNum / 6; 
@@ -439,7 +443,7 @@ function ListaEmpleados() {
           currentRow++;
         });
 
-        // 4. SALTO EXACTO DE 7 FILAS VACÍAS ENTRE CADA GRUPO
+        // 5. SALTO EXACTO DE 7 FILAS VACÍAS ENTRE CADA GRUPO
         if (idxGrupo < gruposParaExportar.length - 1) {
             currentRow += 7; 
         }
@@ -526,7 +530,6 @@ function ListaEmpleados() {
         </div>
         
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full lg:w-auto">
-          {/* BOTÓN MASTER */}
           {rolUsuario === 'master' && (
             <button 
               onClick={() => setMostrarModalExcel(true)} 
@@ -537,7 +540,6 @@ function ListaEmpleados() {
             </button>
           )}
 
-          {/* BOTÓN DE EXPORTAR GENERAL */}
           {!supervisorBloqueado && (
             <button 
               onClick={intentarExportar} 
@@ -571,7 +573,6 @@ function ListaEmpleados() {
               <th className="p-3 sm:p-4 border-r border-slate-700">Cédula y Teléfono</th>
               <th className="p-3 sm:p-4 border-r border-slate-700 text-center">Estado</th>
               
-              {/* ASISTENCIA 6 DÍAS */}
               <th className="p-2 sm:p-3 text-center font-bold bg-slate-700 border-r border-slate-600">Sáb</th>
               <th className="p-2 sm:p-3 text-center font-bold bg-slate-700 border-r border-slate-600">Lun</th>
               <th className="p-2 sm:p-3 text-center font-bold bg-slate-700 border-r border-slate-600">Mar</th>
@@ -579,7 +580,6 @@ function ListaEmpleados() {
               <th className="p-2 sm:p-3 text-center font-bold bg-slate-700 border-r border-slate-600">Jue</th>
               <th className="p-2 sm:p-3 text-center font-bold bg-slate-700 border-r border-slate-800">Vie</th>
 
-              {/* COLUMNA CUADRILLA AÑADIDA */}
               <th className="p-3 sm:p-4 border-r border-slate-700 text-center text-yellow-300">Cuadrilla</th>
 
               <th className="p-3 sm:p-4 border-r border-slate-700 text-center">N° de Cuenta Bancaria</th>
@@ -635,7 +635,6 @@ function ListaEmpleados() {
                     <td className="p-2 sm:p-3 text-center border-r border-slate-100 bg-gray-50">{getIconoAsistencia(emp.asistencia_semana, 4)}</td> 
                     <td className="p-2 sm:p-3 text-center border-r border-slate-200 bg-white">{getIconoAsistencia(emp.asistencia_semana, 5)}</td> 
 
-                    {/* MOSTRANDO LA CUADRILLA */}
                     <td className="p-3 sm:p-4 border-r border-slate-200 text-center font-bold text-slate-700 bg-yellow-50/30">
                       {emp.cuadrilla || 'Sin Cuadrilla'}
                     </td>
