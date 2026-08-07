@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-// Función para obtener la fecha local correcta y no rodar de día por el UTC
+// Función para obtener la fecha local correcta y no rodar de día por el UTC (Ajustado a Venezuela UTC-4)
 const getFechaHoyLocal = () => {
-  const hoy = new Date();
-  const offset = hoy.getTimezoneOffset() * 60000;
-  return new Date(hoy.getTime() - offset).toISOString().split('T')[0];
+  const now = new Date();
+  const vetTime = new Date(now.getTime() - (4 * 60 * 60 * 1000));
+  return vetTime.toISOString().split('T')[0];
 };
 
 function AsistenciaDiaria() {
@@ -21,7 +21,11 @@ function AsistenciaDiaria() {
   const esSupervisor = rolUsuario === 'supervisor';
   const backendUrl = 'https://nomia-pro-production.up.railway.app';
   
-  const horaActual = new Date().getHours();
+  // Hora actual calculada estrictamente en base a Venezuela (UTC-4) para evitar discrepancias con el servidor
+  const now = new Date();
+  const vetTime = new Date(now.getTime() - (4 * 60 * 60 * 1000));
+  const horaActual = vetTime.getHours();
+
   // El supervisor no puede editar si ya son las 5:00 PM (17 hrs) o más, o si de algún modo alteró la fecha
   const bloqueadoPorHora = esSupervisor && horaActual >= 17;
   const bloqueadoPorFecha = esSupervisor && fechaSeleccionada !== getFechaHoyLocal();
@@ -137,7 +141,7 @@ function AsistenciaDiaria() {
       {/* ALERTA DE BLOQUEO PARA SUPERVISOR */}
       {bloqueadoPorHora && (
         <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-lg shadow-sm font-bold flex items-center gap-3 animate-pulse text-xs sm:text-sm">
-          <span>🛑</span> La jornada ha cerrado. No puedes modificar ni agregar asistencias después de las 4:00 PM.
+          <span>🛑</span> La jornada ha cerrado. No puedes modificar ni agregar asistencias después de las 5:00 PM.
         </div>
       )}
 

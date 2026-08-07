@@ -41,7 +41,16 @@ function Dashboard() {
       const res = await axios.get(`${backendUrl}/corte-semanal/verificar`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (res.data.pendiente) {
+      
+      // Sincronización UTC / Hora local Venezuela para mostrar el botón de exportación
+      const now = new Date();
+      const vetTime = new Date(now.getTime() - (4 * 60 * 60 * 1000));
+      const day = vetTime.getDay();
+      const hour = vetTime.getHours();
+      
+      const esViernesDespuesDe4PM = (day === 5 && hour >= 16);
+
+      if (res.data.pendiente && esViernesDespuesDe4PM) {
         setMostrarBotonExportar(true);
       } else {
         setMostrarBotonExportar(false); 

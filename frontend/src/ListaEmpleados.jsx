@@ -20,11 +20,12 @@ function ListaEmpleados() {
   const [numeroSemana, setNumeroSemana] = useState('');
   const [tasaBCV, setTasaBCV] = useState('');
 
-  // --- LÓGICA DE HORARIOS Y ROLES (Viernes 6:30 PM) ---
-  const hoy = new Date();
-  const esViernes = hoy.getDay() === 5; 
-  const hora = hoy.getHours(); 
-  const minutos = hoy.getMinutes();
+  // --- LÓGICA DE HORARIOS Y ROLES (Viernes 6:30 PM HORA VENEZUELA) ---
+  const now = new Date();
+  const vetTime = new Date(now.getTime() - (4 * 60 * 60 * 1000));
+  const esViernes = vetTime.getDay() === 5; 
+  const hora = vetTime.getHours(); 
+  const minutos = vetTime.getMinutes();
 
   const esDespues630PM = esViernes && (hora > 18 || (hora === 18 && minutos >= 30));
   const esHoraOficialAdmin = esDespues630PM;
@@ -130,11 +131,12 @@ function ListaEmpleados() {
 
   const obtenerFechas6Dias = () => {
     const current = new Date();
-    const currentDay = current.getDay(); 
+    const vetCurrent = new Date(current.getTime() - (4 * 60 * 60 * 1000));
+    const currentDay = vetCurrent.getDay(); 
     const offsetToSaturday = currentDay === 6 ? 0 : currentDay + 1; 
     
-    const pastSaturday = new Date(current);
-    pastSaturday.setDate(current.getDate() - offsetToSaturday);
+    const pastSaturday = new Date(vetCurrent);
+    pastSaturday.setDate(vetCurrent.getDate() - offsetToSaturday);
     
     const fechas = [];
     for(let i = 0; i < 7; i++) {
