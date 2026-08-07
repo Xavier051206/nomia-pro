@@ -226,6 +226,12 @@ app.post('/empleados', verificarToken, async (req, res) => {
         const regexCedula = /^[VE][0-9]{5,8}$/;
         if (!dni || !regexCedula.test(dni)) return res.status(400).json({ error: 'Cédula inválida.' });
 
+        // Validación de Teléfono con los 6 tipos permitidos (0212, 0414, 0416, 0426, 0424, 0422) + 7 dígitos
+        const regexTelf = /^(0212|0414|0416|0426|0424|0422)[0-9]{7}$/;
+        if (!numeroTelf || !regexTelf.test(numeroTelf)) {
+            return res.status(400).json({ error: 'Número de teléfono inválido. Debe iniciar con 0212, 0414, 0416, 0426, 0424 o 0422 y tener 11 dígitos en total.' });
+        }
+
         if (puesto === 'Coordinador') {
             const existeCoord = await pool.query("SELECT COUNT(*) FROM Empleado WHERE puesto = 'Coordinador'");
             if (parseInt(existeCoord.rows[0].count) > 0) {
@@ -236,7 +242,7 @@ app.post('/empleados', verificarToken, async (req, res) => {
         await pool.query('BEGIN'); 
         const personaResult = await pool.query(
             'INSERT INTO Persona (nombre, apellido, dni, numeroTelf, fechaNacimiento) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-            [nombre, apellido, dni, numeroTelf || 'No registrado', '1990-01-01']
+            [nombre, apellido, dni, numeroTelf, '1990-01-01']
         );
         const rowPersona = personaResult.rows[0];
         const idDeLaPersona = rowPersona.personalid || rowPersona.id;
@@ -332,6 +338,12 @@ app.put('/empleados/:id', verificarToken, async (req, res) => {
     const { personaID, personaid, nombre, apellido, dni, numeroTelf, puesto, salarioBase, cuentaBancaria, estado, motivoSancion, diasSuspension, direccion } = req.body;
     const idPersonaReal = personaid || personaID;
     
+    // Validación de Teléfono al editar
+    const regexTelf = /^(0212|0414|0416|0426|0424|0422)[0-9]{7}$/;
+    if (!numeroTelf || !regexTelf.test(numeroTelf)) {
+        return res.status(400).json({ error: 'Número de teléfono inválido.' });
+    }
+
     try {
         if (puesto === 'Coordinador') {
             const existeCoord = await pool.query("SELECT COUNT(*) FROM Empleado WHERE puesto = 'Coordinador' AND empleadoID != $1", [id]);
@@ -597,11 +609,9 @@ app.get('/corte-semanal/verificar', verificarToken, async (req, res) => {
         const day = now.getDay(); 
         const hour = now.getHours();
 
-        // Verifica si es Viernes a partir de las 4 PM (16:00) o Sábado
         const esHoraDeCorte = (day === 5 && hour >= 16) || day === 6;
         if (!esHoraDeCorte) return res.json({ pendiente: false });
 
-        // Calcula correctamente el inicio de semana saltando al sábado pasado
         const offsetToSaturday = day === 6 ? 0 : day + 1;
         const inicioSemana = new Date(now);
         inicioSemana.setDate(now.getDate() - offsetToSaturday); 
@@ -621,7 +631,6 @@ app.get('/corte-semanal/verificar', verificarToken, async (req, res) => {
     }
 });
 
-// Función reutilizable para el corte semanal
 const ejecutarCorteSemanal = async (usuario = 'Sistema Automático') => {
     const client = await pool.connect();
     try {
@@ -696,7 +705,6 @@ const enviarCorreoReportes = async (archivos) => {
     }
 };
 
-// Cron programado para todos los Viernes (5) a las 11:59 PM
 cron.schedule('59 23 * * 5', async () => {
     console.log('⏰ Iniciando corte semanal automático del viernes a las 11:59 PM...');
     try {

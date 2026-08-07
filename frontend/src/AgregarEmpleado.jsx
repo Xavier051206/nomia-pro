@@ -5,8 +5,12 @@ function AgregarEmpleado() {
   const [nombre, setNombre] = useState('');
   const [apellido, setApellido] = useState('');
   const [dni, setDni] = useState('');
-  const [numeroTelf, setNumeroTelf] = useState('');
-  const [direccion, setDireccion] = useState(''); // <-- NUEVO ESTADO PARA DIRECCIÓN
+  
+  // Estados para el teléfono separado
+  const [phonePrefix, setPhonePrefix] = useState('0414');
+  const [phoneRest, setPhoneRest] = useState('');
+
+  const [direccion, setDireccion] = useState(''); 
   const [puesto, setPuesto] = useState(''); 
   const [salarioBase, setSalarioBase] = useState('');
   const [cuentaBancaria, setCuentaBancaria] = useState(''); 
@@ -34,6 +38,13 @@ function AgregarEmpleado() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // Validar teléfono completo (11 dígitos)
+    const fullNumber = phonePrefix + phoneRest;
+    if (phoneRest.length !== 7) {
+      alert("⚠️ El número de teléfono debe tener exactamente 7 dígitos después del prefijo.");
+      return;
+    }
+
     if (cuentaBancaria && cuentaBancaria.length !== 20) {
       alert("⚠️ El número de cuenta debe tener EXACTAMENTE 20 dígitos.");
       return;
@@ -56,8 +67,8 @@ function AgregarEmpleado() {
         nombre: nombreFormateado,
         apellido: apellidoFormateado,
         dni: cedulaLimpia,
-        numeroTelf: numeroTelf, 
-        direccion: direccion.trim() || 'No registrada', // <-- ENVIAMOS LA DIRECCIÓN AL BACKEND
+        numeroTelf: fullNumber, // Enviamos el teléfono unificado
+        direccion: direccion.trim() || 'No registrada', 
         fechaNacimiento: '1990-01-01',
         puesto: puesto,
         salarioBase: parseFloat(salarioBase),
@@ -68,8 +79,8 @@ function AgregarEmpleado() {
       });
       
       alert('✅ ¡Empleado registrado con éxito!');
-      // <-- LIMPIAMOS EL CAMPO DE DIRECCIÓN TAMBIÉN
-      setNombre(''); setApellido(''); setDni(''); setNumeroTelf(''); setDireccion(''); setPuesto(''); setSalarioBase(''); setCuentaBancaria('');
+      // Limpiamos los campos
+      setNombre(''); setApellido(''); setDni(''); setPhoneRest(''); setDireccion(''); setPuesto(''); setSalarioBase(''); setCuentaBancaria('');
       
     } catch (error) {
       console.error("Error del backend:", error.response?.data);
@@ -90,9 +101,33 @@ function AgregarEmpleado() {
         <input type="text" placeholder="Nombre" value={nombre} onChange={e => setNombre(e.target.value)} required className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm sm:text-base" />
         <input type="text" placeholder="Apellido" value={apellido} onChange={e => setApellido(e.target.value)} required className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm sm:text-base" />
         <input type="text" placeholder="Cédula (Ej: V12345678)" value={dni} onChange={e => setDni(e.target.value.toUpperCase())} required maxLength={10} className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm sm:text-base" />
-        <input type="text" placeholder="Teléfono (Ej: 0414-1234567)" value={numeroTelf} onChange={e => setNumeroTelf(e.target.value)} required className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm sm:text-base" />
         
-        {/* NUEVO CAMPO DE DIRECCIÓN - Ocupa todo el ancho */}
+        {/* NUEVO FORMATO DE TELÉFONO SEPARADO (Select + Input) */}
+        <div className="flex gap-2">
+          <select 
+            value={phonePrefix} 
+            onChange={e => setPhonePrefix(e.target.value)} 
+            className="p-3 border rounded-lg bg-white w-32 font-bold text-blue-800 focus:ring-2 focus:ring-blue-500 outline-none text-sm sm:text-base"
+          >
+            <option value="0212">0212</option>
+            <option value="0414">0414</option>
+            <option value="0416">0416</option>
+            <option value="0426">0426</option>
+            <option value="0424">0424</option>
+            <option value="0422">0422</option>
+          </select>
+          <input 
+            type="text" 
+            maxLength="7" 
+            value={phoneRest} 
+            onChange={e => setPhoneRest(e.target.value.replace(/\D/g, ''))} 
+            placeholder="1234567" 
+            required 
+            className="flex-1 p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono text-sm sm:text-base" 
+          />
+        </div>
+        
+        {/* DIRECCIÓN */}
         <div className="col-span-1 md:col-span-2">
           <input 
             type="text" 
