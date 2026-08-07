@@ -13,6 +13,9 @@ function AsistenciaDiaria() {
   const [fechaSeleccionada, setFechaSeleccionada] = useState(getFechaHoyLocal());
   const [busqueda, setBusqueda] = useState('');
   const [cargando, setCargando] = useState(true);
+  
+  // NUEVO: Estado para saber qué empleado estamos editando su justificación
+  const [editandoJustificacion, setEditandoJustificacion] = useState({});
 
   const rolUsuario = localStorage.getItem('rol'); 
   const esSupervisor = rolUsuario === 'supervisor';
@@ -35,7 +38,10 @@ function AsistenciaDiaria() {
       const res = await axios.get(`${backendUrl}/asistencia?fecha=${fecha}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setEmpleados(res.data.map(emp => ({ ...emp, observacion: emp.observacion || '' })));
+      // Mapeo inicial: Permitimos que venga nulo (vacío) desde la base de datos
+      setEmpleados(res.data.map(emp => ({ ...emp, asistencia_estado: emp.asistencia_estado || '', observacion: emp.observacion || '' })));
+      // Limpiamos los estados de edición al cambiar de fecha
+      setEditandoJustificacion({});
     } catch (error) {
       console.error("Error cargando asistencia:", error);
     } finally {
@@ -47,11 +53,13 @@ function AsistenciaDiaria() {
   const guardarAsistenciaIndividual = async (empleadoID, nuevoEstado, observacionActual) => {
     if (modoSoloLectura) return; // Candado extra por seguridad
 
-    // Si le dan a "Justificado", solo cambia el estado visualmente, NO guarda aún.
+    // Si le dan a "Justificado", solo cambia el estado visualmente y abre el input, NO guarda aún.
     if (nuevoEstado === 'Justificado') {
        setEmpleados(empleados.map(emp => 
         emp.empleadoid === empleadoID ? { ...emp, asistencia_estado: 'Justificado' } : emp
       ));
+      // Activamos el modo edición automáticamente para este empleado
+      setEditandoJustificacion(prev => ({ ...prev, [empleadoID]: true }));
       return; 
     }
 
@@ -102,6 +110,9 @@ function AsistenciaDiaria() {
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      
+      // Apagamos el modo edición para mostrar el texto transparente con el lápiz
+      setEditandoJustificacion(prev => ({ ...prev, [empleadoID]: false }));
       alert('✅ Falta justificada guardada con éxito');
     } catch (error) {
       alert('❌ Error al guardar la justificación');
@@ -189,7 +200,7 @@ function AsistenciaDiaria() {
                     {emp.dni}
                   </span>
                   <span className="text-[9px] font-black uppercase px-2.5 py-1 rounded-full bg-slate-100 text-slate-500">
-                    {emp.asistencia_estado}
+                    {emp.asistencia_estado || 'Sin Registro'}
                   </span>
                 </div>
                 <h3 className="text-base sm:text-lg font-black text-slate-800 mb-0.5">{emp.apellido}, {emp.nombre}</h3>
@@ -232,23 +243,41 @@ function AsistenciaDiaria() {
 
                 {/* LA BARRA DE NOTA SOLO APARECE SI EL ESTADO ES JUSTIFICADO */}
                 {emp.asistencia_estado === 'Justificado' && (
-                  <div className="flex gap-2 animate-fade-in bg-gray-50 p-2 rounded-lg border border-gray-200">
-                    <input 
-                      type="text"
-                      value={emp.observacion}
-                      onChange={(e) => manejarCambioObservacion(emp.empleadoid, e.target.value)}
-                      disabled={modoSoloLectura}
-                      placeholder="Escribe el motivo de la justificación..."
-                      className="w-full p-2 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
-                    />
-                    <button 
-                      onClick={() => guardarObservacionYJustificacion(emp.empleadoid, emp.asistencia_estado, emp.observacion)} 
-                      disabled={modoSoloLectura}
-                      className={`bg-blue-600 text-white px-3 rounded-lg text-xs font-bold transition shadow flex items-center gap-1 ${!modoSoloLectura ? 'hover:bg-blue-700' : 'opacity-50 cursor-not-allowed'}`} 
-                      title="Guardar Justificación"
-                    >
-                      💾 Guardar
-                    </button>
+                  <div className="mt-2 animate-fade-in">
+                    {editandoJustificacion[emp.empleadoid] ? (
+                      /* MODO EDICIÓN: Input normal y botón de guardar */
+                      <div className="flex gap-2 items-center bg-gray-50 p-2 rounded-lg border border-gray-200">
+                        <input 
+                          type="text" 
+                          value={emp.observacion} 
+                          onChange={(e) => manejarCambioObservacion(emp.empleadoid, e.target.value)} 
+                          placeholder="Escribe el motivo..." 
+                          className="w-full p-2 border border-blue-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500 bg-white" 
+                        />
+                        <button 
+                          onClick={() => guardarObservacionYJustificacion(emp.empleadoid, 'Justificado', emp.observacion)} 
+                          className="bg-blue-600 text-white px-3 py-2 rounded-lg text-xs font-bold transition hover:bg-blue-700 shadow"
+                          title="Guardar Justificación"
+                        >
+                          💾
+                        </button>
+                      </div>
+                    ) : (
+                      /* MODO LECTURA / GUARDADO: Texto transparente y botón editar */
+                      <div className="flex gap-2 items-center justify-between bg-transparent border border-transparent p-2 rounded-lg">
+                        <p className="text-xs text-slate-700 italic font-medium w-full px-1 truncate" title={emp.observacion}>
+                          "{emp.observacion || 'Sin motivo especificado'}"
+                        </p>
+                        <button 
+                          onClick={() => setEditandoJustificacion(prev => ({ ...prev, [emp.empleadoid]: true }))} 
+                          disabled={modoSoloLectura}
+                          className={`text-slate-600 bg-slate-200 hover:bg-slate-300 px-3 py-2 rounded-lg text-xs font-bold transition shadow-sm flex items-center justify-center ${modoSoloLectura ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          title="Editar Justificación"
+                        >
+                          ✏️
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
                 

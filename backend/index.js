@@ -501,7 +501,7 @@ app.get('/asistencia', verificarToken, async (req, res) => {
     try {
         const query = `
             SELECT e.empleadoID as "empleadoID", e.empleadoID as empleadoid, p.nombre, p.apellido, p.dni, e.puesto, e.estado AS estado_empleado,
-                   COALESCE(a.estado, 'Presente') AS asistencia_estado,
+                   a.estado AS asistencia_estado,
                    a.observacion
             FROM Empleado e
             JOIN Persona p ON e.personaid = p.personalid
