@@ -227,9 +227,9 @@ app.post('/empleados', verificarToken, async (req, res) => {
         if (!dni || !regexCedula.test(dni)) return res.status(400).json({ error: 'Cédula inválida.' });
 
         // Validación de Teléfono con los 6 tipos permitidos (0212, 0414, 0416, 0426, 0424, 0422) + 7 dígitos
-        const regexTelf = /^(0212|0414|0416|0426|0424|0422)[0-9]{7}$/;
+        const regexTelf = /^(0212|0414|0416|0412|0426|0424|0422)[0-9]{7}$/;
         if (!numeroTelf || !regexTelf.test(numeroTelf)) {
-            return res.status(400).json({ error: 'Número de teléfono inválido. Debe iniciar con 0212, 0414, 0416, 0426, 0424 o 0422 y tener 11 dígitos en total.' });
+            return res.status(400).json({ error: 'Número de teléfono inválido. Debe iniciar con 0212, 0414, 0416, 0412, 0426, 0424 o 0422 y tener 11 dígitos en total.' });
         }
 
         if (puesto === 'Coordinador') {
