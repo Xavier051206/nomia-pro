@@ -70,6 +70,31 @@ function ListaEmpleados() {
     }
   };
 
+  // Función para calcular años y meses en la empresa
+  const calcularTiempoTrabajando = (fechaString) => {
+    if (!fechaString || fechaString === 'No registrada') return "No registrada";
+    
+    const inicio = new Date(fechaString);
+    if (isNaN(inicio.getTime())) return "Fecha inválida";
+    
+    const hoy = new Date();
+    let anios = hoy.getFullYear() - inicio.getFullYear();
+    let meses = hoy.getMonth() - inicio.getMonth();
+    
+    if (meses < 0) {
+      anios--;
+      meses += 12;
+    }
+    
+    if (anios === 0 && meses === 0) return "Menos de 1 mes";
+    
+    let texto = [];
+    if (anios > 0) texto.push(`${anios} año${anios > 1 ? 's' : ''}`);
+    if (meses > 0) texto.push(`${meses} mes${meses > 1 ? 'es' : ''}`);
+    
+    return texto.join(', ');
+  };
+
   // Íconos para la vista web
   const getIconoAsistencia = (asistenciaSemana, diaBusqueda) => {
     if (!asistenciaSemana || !Array.isArray(asistenciaSemana)) return '➖';
@@ -98,18 +123,16 @@ function ListaEmpleados() {
     let ausencias = 0;
     if (asistenciaSemana && Array.isArray(asistenciaSemana)) {
       asistenciaSemana.forEach(a => { 
-        // Si por error existe un registro de domingo (dia 7), se ignora por completo
         if (Number(a.dia) === 7) return;
         if (a.estado === 'Ausente') ausencias += 1; 
       });
     }
     const salarioBaseNum = Number(salarioBase) || 0;
-    const salarioDiario = salarioBaseNum / 6; // Devuelto a 6 días
+    const salarioDiario = salarioBaseNum / 6; 
     const total = salarioBaseNum - (ausencias * salarioDiario);
     return total < 0 ? 0 : total;
   };
 
-  // Obtiene 6 fechas (Sáb, Lun, Mar, Mié, Jue, Vie), omitiendo el domingo
   const obtenerFechas6Dias = () => {
     const current = new Date();
     const currentDay = current.getDay(); 
@@ -120,7 +143,7 @@ function ListaEmpleados() {
     
     const fechas = [];
     for(let i = 0; i < 7; i++) {
-       if (i === 1) continue; // Salta el i=1 que representa el Domingo
+       if (i === 1) continue; 
        const tempDate = new Date(pastSaturday);
        tempDate.setDate(pastSaturday.getDate() + i);
        fechas.push(tempDate.getDate()); 
@@ -142,23 +165,17 @@ function ListaEmpleados() {
     }
   };
 
-  // --- LÓGICA PRINCIPAL DEL BOTÓN VERDE CORREGIDA ---
   const intentarExportar = () => {
-    // Si el usuario es MASTER, el botón verde SIEMPRE exporta el BÁSICO
     if (rolUsuario === 'master') {
       generarArchivoExcelBasico();
     } 
-    // Si es Supervisor, el botón verde SIEMPRE exporta el BÁSICO (y se oculta a las 6:30pm por otra lógica)
     else if (rolUsuario === 'supervisor') {
       generarArchivoExcelBasico();
     } 
-    // Administrador y Asistente
     else {
       if (esHoraOficialAdmin) {
-        // Solo ellos ven el modal los viernes después de las 6:30 PM en el botón verde
         setMostrarModalExcel(true);
       } else {
-        // Antes de las 6:30 PM, exportan el BÁSICO
         generarArchivoExcelBasico();
       }
     }
@@ -171,7 +188,7 @@ function ListaEmpleados() {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Personal', { views: [{ showGridLines: false }] });
 
-    sheet.mergeCells('A1:K1');
+    sheet.mergeCells('A1:L1'); // Aumentado hasta la L por la nueva columna
     const titleCell = sheet.getCell('A1');
     titleCell.value = `LISTADO DE PERSONAL - ESTADO: ${filtroEstado.toUpperCase()}`;
     titleCell.font = { bold: true, size: 11, name: 'Arial' };
@@ -179,7 +196,8 @@ function ListaEmpleados() {
     titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF00' } }; 
     sheet.getRow(1).height = 25;
 
-    const headers = ["#", "NOMBRES Y APELLIDOS", "DIRECCIÓN", "CÉDULA", "TELÉFONO", "PUESTO", "ESTADO", "CUENTA BANCARIA", "SALARIO BASE ($)", "FECHA DE CONTRATACIÓN", "N° SUSPENSIONES"];
+    // Se añadió "TIEMPO LABORADO"
+    const headers = ["#", "NOMBRES Y APELLIDOS", "DIRECCIÓN", "CÉDULA", "TELÉFONO", "PUESTO", "ESTADO", "CUENTA BANCARIA", "SALARIO BASE ($)", "FECHA DE CONTRATACIÓN", "TIEMPO LABORADO", "N° SUSPENSIONES"];
     const row2 = sheet.getRow(2);
     row2.values = headers;
     row2.height = 25;
@@ -207,7 +225,8 @@ function ListaEmpleados() {
         emp.estado,
         emp.cuentabancaria || "No registrada",
         baseNum,
-        emp.fechacontratacion || emp.fecha_contratacion || "No registrada", 
+        emp.fechacontratacion || "No registrada", 
+        calcularTiempoTrabajando(emp.fechacontratacion), // Calcula cuánto tiempo lleva en la empresa
         emp.suspensiones || 0 
       ];
       row.height = 20;
@@ -234,8 +253,9 @@ function ListaEmpleados() {
     sheet.getColumn('G').width = 12;
     sheet.getColumn('H').width = 24;
     sheet.getColumn('I').width = 16; 
-    sheet.getColumn('J').width = 22; 
-    sheet.getColumn('K').width = 18; 
+    sheet.getColumn('J').width = 22; // Fecha de Contratación
+    sheet.getColumn('K').width = 22; // Tiempo Laborado
+    sheet.getColumn('L').width = 18; // Suspensiones
 
     const buffer = await workbook.xlsx.writeBuffer();
     const fechaHoy = new Date().toISOString().split('T')[0];
@@ -260,7 +280,7 @@ function ListaEmpleados() {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Nómina Oficial', { views: [{ showGridLines: false }] });
 
-    sheet.mergeCells('A1:T1'); // Ajustado a 20 columnas (Hasta la T)
+    sheet.mergeCells('A1:T1'); 
     const titleCell = sheet.getCell('A1');
     titleCell.value = `ASISTENCIA DEL MES DE ${mesActual} ${anioActual} - SEMANA ${numeroSemana} (TASA BCV: ${tasa.toFixed(2)} Bs)`;
     titleCell.font = { bold: true, size: 11, name: 'Arial' };
@@ -268,7 +288,6 @@ function ListaEmpleados() {
     titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF00' } }; 
     sheet.getRow(1).height = 25;
 
-    // Estructura 6 Días - SIN DOMINGO Y SIN DIRECCIÓN DE VIVIENDA
     const headers = [
       "#", "NOMBRES Y APELLIDOS", "CEDULA", "OCUPACION", 
       "SABADO", "LUNES", "MARTES", "MIERCOLES", "JUEVES", "VIERNES", 
@@ -311,7 +330,7 @@ function ListaEmpleados() {
       let diasTrabajados = 0;
       if (emp.asistencia_semana && Array.isArray(emp.asistencia_semana)) {
         emp.asistencia_semana.forEach(a => { 
-          if (Number(a.dia) === 7) return; // Ignorar Domingo
+          if (Number(a.dia) === 7) return; 
           if (a.estado === 'Ausente') ausencias += 1; 
           if (a.estado === 'Presente' || a.estado === 'Justificado') diasTrabajados += 1;
         });
@@ -325,18 +344,17 @@ function ListaEmpleados() {
       const nombreCompleto = `${emp.nombre || ''} ${emp.apellido || ''}`.trim().toUpperCase();
       const puestoLimpio = (emp.puesto || '').toUpperCase();
 
-      // ISODOW Mapeo: Sáb(6), Lun(1), Mar(2), Mié(3), Jue(4), Vie(5)
       const rowValues = [
         index + 1,
         nombreCompleto,
         emp.dni || "",
         puestoLimpio,
-        getIconoAsistenciaExcel(emp.asistencia_semana, 6), // Sáb
-        getIconoAsistenciaExcel(emp.asistencia_semana, 1), // Lun
-        getIconoAsistenciaExcel(emp.asistencia_semana, 2), // Mar
-        getIconoAsistenciaExcel(emp.asistencia_semana, 3), // Mié
-        getIconoAsistenciaExcel(emp.asistencia_semana, 4), // Jue
-        getIconoAsistenciaExcel(emp.asistencia_semana, 5), // Vie
+        getIconoAsistenciaExcel(emp.asistencia_semana, 6), 
+        getIconoAsistenciaExcel(emp.asistencia_semana, 1), 
+        getIconoAsistenciaExcel(emp.asistencia_semana, 2), 
+        getIconoAsistenciaExcel(emp.asistencia_semana, 3), 
+        getIconoAsistenciaExcel(emp.asistencia_semana, 4), 
+        getIconoAsistenciaExcel(emp.asistencia_semana, 5), 
         diasTrabajados,
         porcentajeAsistencia, 
         salarioDiario,       
@@ -358,8 +376,8 @@ function ListaEmpleados() {
         cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
         cell.font = { size: 9, name: 'Arial' }; 
         if (colNumber === 2) cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
-        if (colNumber === 12) cell.numFmt = '0%'; // Columna L
-        if (colNumber === 13 || colNumber === 14 || colNumber === 15) cell.numFmt = '#,##0.00'; // Columnas M, N, O
+        if (colNumber === 12) cell.numFmt = '0%'; 
+        if (colNumber === 13 || colNumber === 14 || colNumber === 15) cell.numFmt = '#,##0.00'; 
       });
       currentRow++;
     });
@@ -368,7 +386,7 @@ function ListaEmpleados() {
     sheet.getColumn('B').width = 24;  
     sheet.getColumn('C').width = 11;  
     sheet.getColumn('D').width = 13;
-    sheet.columns.forEach((col, idx) => { if (idx >= 4 && idx <= 9) col.width = 6.5; }); // Días
+    sheet.columns.forEach((col, idx) => { if (idx >= 4 && idx <= 9) col.width = 6.5; }); 
     sheet.getColumn('K').width = 9;   
     sheet.getColumn('L').width = 8;   
     sheet.getColumn('M').width = 10;  
@@ -544,13 +562,12 @@ function ListaEmpleados() {
                       </span>
                     </td>
                     
-                    {/* DÍAS CON MAPEO ISODOW CORRECTO */}
-                    <td className="p-2 sm:p-3 text-center border-r border-slate-100 bg-gray-50">{getIconoAsistencia(emp.asistencia_semana, 6)}</td> {/* Sáb */}
-                    <td className="p-2 sm:p-3 text-center border-r border-slate-100 bg-white">{getIconoAsistencia(emp.asistencia_semana, 1)}</td> {/* Lun */}
-                    <td className="p-2 sm:p-3 text-center border-r border-slate-100 bg-gray-50">{getIconoAsistencia(emp.asistencia_semana, 2)}</td> {/* Mar */}
-                    <td className="p-2 sm:p-3 text-center border-r border-slate-100 bg-white">{getIconoAsistencia(emp.asistencia_semana, 3)}</td> {/* Mié */}
-                    <td className="p-2 sm:p-3 text-center border-r border-slate-100 bg-gray-50">{getIconoAsistencia(emp.asistencia_semana, 4)}</td> {/* Jue */}
-                    <td className="p-2 sm:p-3 text-center border-r border-slate-200 bg-white">{getIconoAsistencia(emp.asistencia_semana, 5)}</td> {/* Vie */}
+                    <td className="p-2 sm:p-3 text-center border-r border-slate-100 bg-gray-50">{getIconoAsistencia(emp.asistencia_semana, 6)}</td> 
+                    <td className="p-2 sm:p-3 text-center border-r border-slate-100 bg-white">{getIconoAsistencia(emp.asistencia_semana, 1)}</td> 
+                    <td className="p-2 sm:p-3 text-center border-r border-slate-100 bg-gray-50">{getIconoAsistencia(emp.asistencia_semana, 2)}</td> 
+                    <td className="p-2 sm:p-3 text-center border-r border-slate-100 bg-white">{getIconoAsistencia(emp.asistencia_semana, 3)}</td> 
+                    <td className="p-2 sm:p-3 text-center border-r border-slate-100 bg-gray-50">{getIconoAsistencia(emp.asistencia_semana, 4)}</td> 
+                    <td className="p-2 sm:p-3 text-center border-r border-slate-200 bg-white">{getIconoAsistencia(emp.asistencia_semana, 5)}</td> 
 
                     <td className="p-3 sm:p-4 border-r border-slate-200 text-center">
                       {emp.cuentabancaria ? (

@@ -267,6 +267,7 @@ app.get('/empleados', verificarToken, async (req, res) => {
     try {
         let query = `
             SELECT e.empleadoID as empleadoid, p.personalid as "personaid", p.nombre, p.apellido, p.dni, p.numeroTelf, e.puesto, e.salarioBase, e.estado, e.direccion, e.cuentaBancaria as cuentabancaria,
+            TO_CHAR(e.fechaContratacion, 'YYYY-MM-DD') as fechacontratacion,
             COALESCE((
                 SELECT json_agg(json_build_object(
                     'fecha', TO_CHAR(a.fecha, 'YYYY-MM-DD'), 
@@ -531,7 +532,6 @@ app.get('/dashboard/stats', verificarToken, async (req, res) => {
         const sancionadosRes = await pool.query("SELECT COUNT(*) FROM Empleado WHERE estado = 'Sancionado'");
         const totalRes = await pool.query("SELECT COUNT(*) FROM Empleado");
 
-        // SE AGREGÓ EXTRACT(ISODOW) PARA SABER QUÉ DÍA ES Y PODER IGNORAR LOS DOMINGOS
         const empleadosAsistencia = await pool.query(`
             SELECT e.salarioBase,
             COALESCE((
@@ -552,12 +552,10 @@ app.get('/dashboard/stats', verificarToken, async (req, res) => {
 
         empleadosAsistencia.rows.forEach(emp => {
             const salarioBaseNum = Number(emp.salariobase || emp.salarioBase) || 0;
-            // DEVUELTO A 6 DÍAS COMO PEDISTE
             const salarioDiario = salarioBaseNum / 6; 
             let ausencias = 0;
 
             emp.asistencia_semana.forEach(a => {
-                // SI EL DÍA ES 7 (DOMINGO), SE IGNORA POR COMPLETO
                 if (a.dia === 7) return;
 
                 if (a.estado === 'Ausente') {
