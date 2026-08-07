@@ -10,6 +10,8 @@ function AgregarEmpleado() {
   const [salarioBase, setSalarioBase] = useState('');
   const [cuentaBancaria, setCuentaBancaria] = useState(''); 
 
+  const backendUrl = 'https://nomia-pro-production.up.railway.app';
+
   const capitalizarTexto = (texto) => {
     return texto.split(' ').map(palabra => {
       if (palabra.length === 0) return '';
@@ -48,8 +50,8 @@ function AgregarEmpleado() {
     const apellidoFormateado = capitalizarTexto(apellido);
 
     try {
-      const token = localStorage.getItem('token'); // <-- TOKEN RECUPERADO DE LOCALSTORAGE
-      await axios.post('[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/empleados', {
+      const token = localStorage.getItem('token'); 
+      await axios.post(`${backendUrl}/empleados`, {
         nombre: nombreFormateado,
         apellido: apellidoFormateado,
         dni: cedulaLimpia,
@@ -60,7 +62,7 @@ function AgregarEmpleado() {
         cuentaBancaria: cuentaBancaria,
         fechaContratacion: new Date().toISOString().split('T')[0]
       }, {
-        headers: { Authorization: `Bearer ${token}` } // <-- HEADERS CON AUTORIZACIÓN INCLUIDOS
+        headers: { Authorization: `Bearer ${token}` } 
       });
       
       alert('✅ ¡Empleado registrado con éxito!');
@@ -73,25 +75,25 @@ function AgregarEmpleado() {
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-lg p-8 max-w-4xl mx-auto w-full">
-      <h2 className="text-3xl font-bold text-gray-800 mb-6 border-b pb-4">➕ Registrar Nuevo Empleado</h2>
+    <div className="bg-white rounded-xl shadow-lg p-4 sm:p-8 max-w-4xl mx-auto w-full animate-fade-in">
+      <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b pb-4">➕ Registrar Nuevo Empleado</h2>
       
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
         
         <div className="col-span-1 md:col-span-2 bg-blue-50 p-3 rounded-lg border border-blue-100 mb-2">
           <h3 className="text-blue-800 font-semibold text-sm">Datos Personales</h3>
         </div>
         
-        <input type="text" placeholder="Nombre" value={nombre} onChange={e => setNombre(e.target.value)} required className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-        <input type="text" placeholder="Apellido" value={apellido} onChange={e => setApellido(e.target.value)} required className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-        <input type="text" placeholder="Cédula (Ej: V12345678)" value={dni} onChange={e => setDni(e.target.value.toUpperCase())} required maxLength={10} className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-        <input type="text" placeholder="Teléfono (Ej: 0414-1234567)" value={numeroTelf} onChange={e => setNumeroTelf(e.target.value)} required className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+        <input type="text" placeholder="Nombre" value={nombre} onChange={e => setNombre(e.target.value)} required className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm sm:text-base" />
+        <input type="text" placeholder="Apellido" value={apellido} onChange={e => setApellido(e.target.value)} required className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm sm:text-base" />
+        <input type="text" placeholder="Cédula (Ej: V12345678)" value={dni} onChange={e => setDni(e.target.value.toUpperCase())} required maxLength={10} className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm sm:text-base" />
+        <input type="text" placeholder="Teléfono (Ej: 0414-1234567)" value={numeroTelf} onChange={e => setNumeroTelf(e.target.value)} required className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm sm:text-base" />
         
-        <div className="col-span-1 md:col-span-2 bg-green-50 p-3 rounded-lg border border-green-100 mb-2 mt-4">
+        <div className="col-span-1 md:col-span-2 bg-green-50 p-3 rounded-lg border border-green-100 mb-2 mt-2">
           <h3 className="text-green-800 font-semibold text-sm">Datos Laborales y Bancarios</h3>
         </div>
 
-        <select value={puesto} onChange={e => setPuesto(e.target.value)} required className="p-3 border rounded-lg bg-white focus:ring-2 focus:ring-green-500 outline-none">
+        <select value={puesto} onChange={e => setPuesto(e.target.value)} required className="p-3 border rounded-lg bg-white focus:ring-2 focus:ring-green-500 outline-none text-sm sm:text-base">
           <option value="" disabled>Seleccione una ocupacion...</option>
           <option value="Supervisor">Supervisor</option>
           <option value="Caporal">Caporal</option>
@@ -103,7 +105,7 @@ function AgregarEmpleado() {
           <option value="Coordinador">Coordinador</option>
         </select>
 
-        <input type="number" placeholder="Salario Base ($)" value={salarioBase} onChange={e => setSalarioBase(e.target.value)} required min="1" step="0.01" className="p-3 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none" />
+        <input type="number" placeholder="Salario Base ($)" value={salarioBase} onChange={e => setSalarioBase(e.target.value)} required min="1" step="0.01" className="p-3 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-sm sm:text-base" />
         
         <div className="col-span-1 md:col-span-2 relative mb-4">
           <input 
@@ -111,7 +113,7 @@ function AgregarEmpleado() {
             placeholder="Cuenta Bancaria (Ej: 01020000000000000000)" 
             value={cuentaBancaria} 
             onChange={manejarCuentaBancaria} 
-            className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none font-mono tracking-widest ${
+            className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none font-mono tracking-widest text-xs sm:text-sm ${
               cuentaBancaria.length === 20 ? 'border-green-400 bg-green-50 text-green-800' : 
               cuentaBancaria.length > 0 ? 'border-red-400 bg-red-50 text-red-800' : ''
             }`}
@@ -123,8 +125,8 @@ function AgregarEmpleado() {
           )}
         </div>
         
-        <div className="col-span-1 md:col-span-2 mt-2">
-          <button type="submit" className="w-full bg-blue-600 text-white font-bold py-4 px-4 rounded-lg hover:bg-blue-700 transition shadow-lg text-lg">
+        <div className="col-span-1 md:col-span-2 mt-4">
+          <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 sm:py-4 px-4 rounded-lg hover:bg-blue-700 transition shadow-lg text-base sm:text-lg">
             Guardar Empleado
           </button>
         </div>
