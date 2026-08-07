@@ -6,6 +6,7 @@ function Dashboard() {
     activos: 0, 
     sancionados: 0, 
     total: 0,
+    totalCuadrillas: 0, // NUEVO: Estado para recibir las cuadrillas
     totalNomina: '0.00',
     porcentajeAsistencia: '0.00'
   });
@@ -101,8 +102,8 @@ function Dashboard() {
         )}
       </div>
 
-      {/* TARJETAS DE MÉTRICAS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+      {/* BLOQUE SUPERIOR: 3 TARJETAS (Personal y Cuadrillas) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
         
         {/* TARJETA 1: EMPLEADOS ACTIVOS */}
         <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-5 flex flex-col justify-between hover:shadow-xl transition h-full">
@@ -118,7 +119,21 @@ function Dashboard() {
           <p className="text-[10px] sm:text-xs text-green-600 font-semibold mt-4">🟢 Trabajando actualmente</p>
         </div>
 
-        {/* TARJETA 2: EMPLEADOS SANCIONADOS */}
+        {/* TARJETA NUEVA: CUADRILLAS ACTIVAS */}
+        <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-5 flex flex-col justify-between hover:shadow-xl transition h-full">
+          <div className="flex justify-between items-start gap-4">
+            <div className="min-w-0">
+              <p className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider truncate">Cuadrillas Activas</p>
+              <h3 className="text-3xl sm:text-4xl font-black text-slate-800 mt-2 truncate">
+                {cargando ? '...' : stats.totalCuadrillas}
+              </h3>
+            </div>
+            <div className="bg-yellow-100 p-2 sm:p-3 rounded-xl text-yellow-700 text-lg sm:text-xl font-bold shrink-0">👷‍♂️</div>
+          </div>
+          <p className="text-[10px] sm:text-xs text-yellow-700 font-semibold mt-4">⚙️ Grupos operativos en campo</p>
+        </div>
+
+        {/* TARJETA 3: EMPLEADOS SANCIONADOS */}
         <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-5 flex flex-col justify-between hover:shadow-xl transition h-full">
           <div className="flex justify-between items-start gap-4">
             <div className="min-w-0">
@@ -132,7 +147,12 @@ function Dashboard() {
           <p className="text-[10px] sm:text-xs text-orange-600 font-semibold mt-4">🟡 Suspendidos temporalmente</p>
         </div>
 
-        {/* TARJETA 3: PORCENTAJE DE ASISTENCIA */}
+      </div>
+
+      {/* BLOQUE INFERIOR: 2 TARJETAS MÁS GRANDES (Métricas y Finanzas) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+        
+        {/* TARJETA 4: PORCENTAJE DE ASISTENCIA */}
         <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-5 flex flex-col justify-between hover:shadow-xl transition h-full">
           <div className="flex justify-between items-start gap-4">
             <div className="min-w-0 w-full">
@@ -148,7 +168,7 @@ function Dashboard() {
           </div>
         </div>
 
-        {/* TARJETA 4: PROYECCIÓN DE NÓMINA */}
+        {/* TARJETA 5: PROYECCIÓN DE NÓMINA */}
         <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl shadow-lg border border-emerald-200 p-5 flex flex-col justify-between hover:shadow-xl transition h-full">
           <div className="flex justify-between items-start gap-4">
             <div className="min-w-0">
@@ -165,6 +185,7 @@ function Dashboard() {
         </div>
 
       </div>
+
     </div>
   );
 }

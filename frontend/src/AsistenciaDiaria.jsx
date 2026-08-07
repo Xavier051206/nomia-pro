@@ -124,9 +124,11 @@ function AsistenciaDiaria() {
     const dni = String(emp.dni || '').toLowerCase();
     const nombre = String(emp.nombre || '').toLowerCase();
     const apellido = String(emp.apellido || '').toLowerCase();
-    const telf = String(emp.numerotelf || emp.numeroTelf || '').toLowerCase();
+    const cuadrilla = String(emp.cuadrilla || '').toLowerCase();
+    const puesto = String(emp.puesto || '').toLowerCase();
 
-    return dni.includes(texto) || nombre.includes(texto) || apellido.includes(texto) || telf.includes(texto);
+    // SUPER BUSCADOR: Ahora busca por número de cuadrilla o por nombre del puesto también
+    return dni.includes(texto) || nombre.includes(texto) || apellido.includes(texto) || cuadrilla.includes(texto) || puesto.includes(texto);
   });
 
   return (
@@ -164,14 +166,14 @@ function AsistenciaDiaria() {
         </div>
       </div>
 
-      {/* BUSCADOR */}
+      {/* SUPER BUSCADOR */}
       <div className="bg-white rounded-xl shadow-md p-3 border border-slate-200 flex items-center gap-3">
         <span className="text-xl pl-2">🔍</span>
         <input 
           type="text"
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
-          placeholder="Buscar empleado..."
+          placeholder="Buscar por empleado, puesto (Ej: Herrero) o número de cuadrilla (Ej: 3)..."
           className="w-full outline-none text-slate-700 font-medium placeholder-slate-400 text-xs sm:text-sm"
         />
         {busqueda && (
@@ -204,7 +206,15 @@ function AsistenciaDiaria() {
                   </span>
                 </div>
                 <h3 className="text-base sm:text-lg font-black text-slate-800 mb-0.5">{emp.apellido}, {emp.nombre}</h3>
-                <p className="text-[10px] sm:text-xs text-slate-500 font-semibold mb-4">💼 Puesto: <span className="text-slate-700">{emp.puesto}</span></p>
+                
+                {/* AQUI MOSTRAMOS EL PUESTO Y LA CUADRILLA */}
+                <div className="flex items-center gap-2 mb-4 mt-1">
+                  <p className="text-[10px] sm:text-xs text-slate-500 font-semibold">💼 {emp.puesto}</p>
+                  <span className="text-gray-300">|</span>
+                  <p className="text-[10px] sm:text-xs text-yellow-700 font-bold bg-yellow-50 px-2 py-0.5 rounded border border-yellow-200">
+                    👷‍♂️ {emp.cuadrilla || 'Sin Cuadrilla'}
+                  </p>
+                </div>
               </div>
 
               <div className="space-y-4 pt-4 border-t border-slate-100">

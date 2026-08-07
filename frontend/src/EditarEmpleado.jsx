@@ -61,7 +61,8 @@ function EditarEmpleado() {
       puesto: emp.puesto || 'Cuadrillero',
       salarioBase: emp.salarioBase || emp.salariobase || '',
       cuentaBancaria: emp.cuentabancaria || '', 
-      estado: emp.estado || 'Activo'
+      estado: emp.estado || 'Activo',
+      cuadrilla: emp.cuadrilla || 'Sin Cuadrilla' // NUEVO: Cargamos la cuadrilla actual
     });
     setMotivoSancion('');
     setDiasSancion('');
@@ -103,6 +104,12 @@ function EditarEmpleado() {
       return;
     }
 
+    // Validar que si es cuadrillero o caporal, haya seleccionado una cuadrilla
+    if ((empleadoEdit.puesto === 'Caporal' || empleadoEdit.puesto === 'Cuadrillero') && (!empleadoEdit.cuadrilla || empleadoEdit.cuadrilla === 'Sin Cuadrilla')) {
+      alert('⚠️ Error: Debes asignar una Cuadrilla válida para este cargo.');
+      return;
+    }
+
     setCargando(true);
     setMensajeExito('');
     setMensajeError('');
@@ -116,7 +123,9 @@ function EditarEmpleado() {
         numeroTelf: fullNumber, // Unimos el teléfono antes de enviarlo
         personaID: empleadoEdit.personaID, 
         motivoSancion: motivoSancion,
-        diasSuspension: diasSancion
+        diasSuspension: diasSancion,
+        // Forzamos "Sin Cuadrilla" si le cambian el puesto a Staff
+        cuadrilla: (empleadoEdit.puesto === 'Caporal' || empleadoEdit.puesto === 'Cuadrillero') ? empleadoEdit.cuadrilla : 'Sin Cuadrilla'
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -243,9 +252,41 @@ function EditarEmpleado() {
                 <option value="Seguridad">Seguridad</option>
                 <option value="Paramédico">Paramédico</option>
                 <option value="Depositario">Depositario</option>
+                <option value="Herrero">Herrero</option>
                 <option value="Coordinador">Coordinador</option>
               </select>
             </div>
+
+            {/* LÓGICA MÁGICA: Aparece o desaparece según el puesto */}
+            {(empleadoEdit.puesto === 'Caporal' || empleadoEdit.puesto === 'Cuadrillero') ? (
+              <div>
+                <label className="text-xs sm:text-sm font-semibold text-gray-600 block mb-1">Asignar Cuadrilla</label>
+                <select 
+                  name="cuadrilla" 
+                  value={empleadoEdit.cuadrilla} 
+                  onChange={manejarCambio} 
+                  disabled={cargando} 
+                  className="w-full p-2.5 border rounded bg-yellow-50 focus:ring-2 focus:ring-yellow-500 outline-none font-bold text-yellow-800 text-xs sm:text-sm disabled:bg-gray-100 animate-fade-in"
+                >
+                  <option value="" disabled>Seleccione la Cuadrilla...</option>
+                  {Array.from({ length: 50 }, (_, i) => (
+                    <option key={i + 1} value={`Cuadrilla ${i + 1}`}>
+                      Cuadrilla {i + 1}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div>
+                <label className="text-xs sm:text-sm font-semibold text-gray-600 block mb-1">Cuadrilla</label>
+                <input 
+                  type="text" 
+                  disabled 
+                  value="Personal sin Cuadrilla asignada" 
+                  className="w-full p-2.5 border rounded text-gray-500 italic text-xs sm:text-sm bg-gray-100" 
+                />
+              </div>
+            )}
 
             <div>
               <label className="text-xs sm:text-sm font-semibold text-gray-600 block mb-1">Salario Base ($)</label>

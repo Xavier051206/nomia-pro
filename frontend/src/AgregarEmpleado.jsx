@@ -14,6 +14,9 @@ function AgregarEmpleado() {
   const [puesto, setPuesto] = useState(''); 
   const [salarioBase, setSalarioBase] = useState('');
   const [cuentaBancaria, setCuentaBancaria] = useState(''); 
+  
+  // NUEVO ESTADO: Para guardar la cuadrilla (1 al 50)
+  const [cuadrilla, setCuadrilla] = useState('');
 
   const backendUrl = 'https://nomia-pro-production.up.railway.app';
 
@@ -58,6 +61,12 @@ function AgregarEmpleado() {
       return; 
     }
 
+    // Validar que si es cuadrillero o caporal, haya seleccionado una cuadrilla
+    if ((puesto === 'Caporal' || puesto === 'Cuadrillero') && !cuadrilla) {
+      alert('⚠️ Error: Debes seleccionar a qué Cuadrilla pertenece este trabajador.');
+      return;
+    }
+
     const nombreFormateado = capitalizarTexto(nombre);
     const apellidoFormateado = capitalizarTexto(apellido);
 
@@ -67,20 +76,22 @@ function AgregarEmpleado() {
         nombre: nombreFormateado,
         apellido: apellidoFormateado,
         dni: cedulaLimpia,
-        numeroTelf: fullNumber, // Enviamos el teléfono unificado
+        numeroTelf: fullNumber,
         direccion: direccion.trim() || 'No registrada', 
         fechaNacimiento: '1990-01-01',
         puesto: puesto,
         salarioBase: parseFloat(salarioBase),
         cuentaBancaria: cuentaBancaria,
-        fechaContratacion: new Date().toISOString().split('T')[0]
+        fechaContratacion: new Date().toISOString().split('T')[0],
+        // Si no es caporal ni cuadrillero, forzamos a que envíe "Sin Cuadrilla"
+        cuadrilla: (puesto === 'Caporal' || puesto === 'Cuadrillero') ? cuadrilla : 'Sin Cuadrilla'
       }, {
         headers: { Authorization: `Bearer ${token}` } 
       });
       
       alert('✅ ¡Empleado registrado con éxito!');
       // Limpiamos los campos
-      setNombre(''); setApellido(''); setDni(''); setPhoneRest(''); setDireccion(''); setPuesto(''); setSalarioBase(''); setCuentaBancaria('');
+      setNombre(''); setApellido(''); setDni(''); setPhoneRest(''); setDireccion(''); setPuesto(''); setSalarioBase(''); setCuentaBancaria(''); setCuadrilla('');
       
     } catch (error) {
       console.error("Error del backend:", error.response?.data);
@@ -102,7 +113,6 @@ function AgregarEmpleado() {
         <input type="text" placeholder="Apellido" value={apellido} onChange={e => setApellido(e.target.value)} required className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm sm:text-base" />
         <input type="text" placeholder="Cédula (Ej: V12345678)" value={dni} onChange={e => setDni(e.target.value.toUpperCase())} required maxLength={10} className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm sm:text-base" />
         
-        {/* NUEVO FORMATO DE TELÉFONO SEPARADO (Select + Input) */}
         <div className="flex gap-2">
           <select 
             value={phonePrefix} 
@@ -112,7 +122,7 @@ function AgregarEmpleado() {
             <option value="0212">0212</option>
             <option value="0414">0414</option>
             <option value="0416">0416</option>
-            <option value="0212">0412</option>
+            <option value="0412">0412</option>
             <option value="0426">0426</option>
             <option value="0424">0424</option>
             <option value="0422">0422</option>
@@ -128,7 +138,6 @@ function AgregarEmpleado() {
           />
         </div>
         
-        {/* DIRECCIÓN */}
         <div className="col-span-1 md:col-span-2">
           <input 
             type="text" 
@@ -154,10 +163,39 @@ function AgregarEmpleado() {
           <option value="Seguridad">Seguridad</option>
           <option value="Paramédico">Paramédico</option>
           <option value="Depositario">Depositario</option>
+          <option value="Herrero">Herrero</option>
           <option value="Coordinador">Coordinador</option>
         </select>
 
-        <input type="number" placeholder="Salario Base ($)" value={salarioBase} onChange={e => setSalarioBase(e.target.value)} required min="1" step="0.01" className="p-3 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-sm sm:text-base" />
+        {/* LÓGICA MÁGICA: Este selector SOLO aparece si eres Caporal o Cuadrillero */}
+        {(puesto === 'Caporal' || puesto === 'Cuadrillero') ? (
+          <select 
+            value={cuadrilla} 
+            onChange={e => setCuadrilla(e.target.value)} 
+            required 
+            className="p-3 border rounded-lg bg-yellow-50 focus:ring-2 focus:ring-yellow-500 outline-none font-bold text-yellow-800 text-sm sm:text-base animate-fade-in"
+          >
+            <option value="" disabled>Seleccione la Cuadrilla...</option>
+            {/* Generamos las 50 opciones automáticamente sin escribir tanto código */}
+            {Array.from({ length: 50 }, (_, i) => (
+              <option key={i + 1} value={`Cuadrilla ${i + 1}`}>
+                Cuadrilla {i + 1}
+              </option>
+            ))}
+          </select>
+        ) : (
+          /* Si elige otro puesto, mostramos este campo deshabilitado para mantener la simetría del diseño */
+          <input 
+            type="text" 
+            disabled 
+            value="Personal sin Cuadrilla asignada" 
+            className="p-3 border rounded-lg bg-gray-100 text-gray-500 italic text-sm sm:text-base" 
+          />
+        )}
+
+        <div className="col-span-1 md:col-span-2 flex gap-4 mt-2">
+          <input type="number" placeholder="Salario Base ($)" value={salarioBase} onChange={e => setSalarioBase(e.target.value)} required min="1" step="0.01" className="flex-1 p-3 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-sm sm:text-base" />
+        </div>
         
         <div className="col-span-1 md:col-span-2 relative mb-4">
           <input 

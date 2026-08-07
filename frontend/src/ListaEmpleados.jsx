@@ -26,13 +26,8 @@ function ListaEmpleados() {
   const hora = hoy.getHours(); 
   const minutos = hoy.getMinutes();
 
-  // Es Viernes después de las 6:30 PM (18:30)
   const esDespues630PM = esViernes && (hora > 18 || (hora === 18 && minutos >= 30));
-  
-  // Administrador / Asistente exporta nómina los Viernes desde las 6:30 PM hasta las 11:59 PM (23:59)
   const esHoraOficialAdmin = esDespues630PM;
-
-  // Supervisor bloqueado de exportar los Viernes desde las 6:30 PM hasta la medianoche
   const supervisorBloqueado = esDespues630PM && rolUsuario === 'supervisor';
 
   useEffect(() => {
@@ -70,10 +65,8 @@ function ListaEmpleados() {
     }
   };
 
-  // Función para calcular años y meses en la empresa
   const calcularTiempoTrabajando = (fechaString) => {
     if (!fechaString || fechaString === 'No registrada') return "No registrada";
-    
     const inicio = new Date(fechaString);
     if (isNaN(inicio.getTime())) return "Fecha inválida";
     
@@ -87,32 +80,26 @@ function ListaEmpleados() {
     }
     
     if (anios === 0 && meses === 0) return "Menos de 1 mes";
-    
     let texto = [];
     if (anios > 0) texto.push(`${anios} año${anios > 1 ? 's' : ''}`);
     if (meses > 0) texto.push(`${meses} mes${meses > 1 ? 'es' : ''}`);
-    
     return texto.join(', ');
   };
 
-  // Íconos para la vista web
   const getIconoAsistencia = (asistenciaSemana, diaBusqueda) => {
     if (!asistenciaSemana || !Array.isArray(asistenciaSemana)) return '➖';
     const registro = asistenciaSemana.find(a => Number(a.dia) === Number(diaBusqueda));
     if (!registro) return '➖'; 
-
     if (registro.estado === 'Presente') return '✅';
     if (registro.estado === 'Ausente') return '❌';
     if (registro.estado === 'Justificado') return '✳️'; 
     return '➖';
   };
 
-  // Íconos para el Excel
   const getIconoAsistenciaExcel = (asistenciaSemana, diaBusqueda) => {
     if (!asistenciaSemana || !Array.isArray(asistenciaSemana)) return '-';
     const registro = asistenciaSemana.find(a => Number(a.dia) === Number(diaBusqueda));
     if (!registro) return '-'; 
-
     if (registro.estado === 'Presente') return '✓';
     if (registro.estado === 'Ausente') return 'X';
     if (registro.estado === 'Justificado') return 'J'; 
@@ -166,13 +153,9 @@ function ListaEmpleados() {
   };
 
   const intentarExportar = () => {
-    if (rolUsuario === 'master') {
+    if (rolUsuario === 'master' || rolUsuario === 'supervisor') {
       generarArchivoExcelBasico();
-    } 
-    else if (rolUsuario === 'supervisor') {
-      generarArchivoExcelBasico();
-    } 
-    else {
+    } else {
       if (esHoraOficialAdmin) {
         setMostrarModalExcel(true);
       } else {
@@ -188,7 +171,7 @@ function ListaEmpleados() {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Personal', { views: [{ showGridLines: false }] });
 
-    sheet.mergeCells('A1:L1'); // Aumentado hasta la L por la nueva columna
+    sheet.mergeCells('A1:M1'); 
     const titleCell = sheet.getCell('A1');
     titleCell.value = `LISTADO DE PERSONAL - ESTADO: ${filtroEstado.toUpperCase()}`;
     titleCell.font = { bold: true, size: 11, name: 'Arial' };
@@ -196,8 +179,8 @@ function ListaEmpleados() {
     titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF00' } }; 
     sheet.getRow(1).height = 25;
 
-    // Se añadió "TIEMPO LABORADO"
-    const headers = ["#", "NOMBRES Y APELLIDOS", "DIRECCIÓN", "CÉDULA", "TELÉFONO", "PUESTO", "ESTADO", "CUENTA BANCARIA", "SALARIO BASE ($)", "FECHA DE CONTRATACIÓN", "TIEMPO LABORADO", "N° SUSPENSIONES"];
+    // Se añadió "CUADRILLA" al exportado básico
+    const headers = ["#", "NOMBRES Y APELLIDOS", "DIRECCIÓN", "CÉDULA", "TELÉFONO", "PUESTO", "CUADRILLA", "ESTADO", "CUENTA BANCARIA", "SALARIO BASE ($)", "FECHA DE CONTRATACIÓN", "TIEMPO LABORADO", "N° SUSPENSIONES"];
     const row2 = sheet.getRow(2);
     row2.values = headers;
     row2.height = 25;
@@ -222,11 +205,12 @@ function ListaEmpleados() {
         emp.dni || "N/A",
         emp.numerotelf || "No registrado",
         (emp.puesto || '').toUpperCase(),
+        (emp.cuadrilla || 'Sin Cuadrilla').toUpperCase(),
         emp.estado,
         emp.cuentabancaria || "No registrada",
         baseNum,
         emp.fechacontratacion || "No registrada", 
-        calcularTiempoTrabajando(emp.fechacontratacion), // Calcula cuánto tiempo lleva en la empresa
+        calcularTiempoTrabajando(emp.fechacontratacion), 
         emp.suspensiones || 0 
       ];
       row.height = 20;
@@ -236,7 +220,7 @@ function ListaEmpleados() {
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
         cell.font = { size: 9, name: 'Arial' };
         if (colNumber === 2 || colNumber === 3) cell.alignment = { horizontal: 'left', vertical: 'middle' };
-        if (colNumber === 9) {
+        if (colNumber === 10) {
           cell.numFmt = '"$"#,##0.00';
           cell.alignment = { horizontal: 'right', vertical: 'middle' };
         }
@@ -250,12 +234,13 @@ function ListaEmpleados() {
     sheet.getColumn('D').width = 13;
     sheet.getColumn('E').width = 15;
     sheet.getColumn('F').width = 15;
-    sheet.getColumn('G').width = 12;
-    sheet.getColumn('H').width = 24;
-    sheet.getColumn('I').width = 16; 
-    sheet.getColumn('J').width = 22; // Fecha de Contratación
-    sheet.getColumn('K').width = 22; // Tiempo Laborado
-    sheet.getColumn('L').width = 18; // Suspensiones
+    sheet.getColumn('G').width = 16; // Cuadrilla
+    sheet.getColumn('H').width = 12;
+    sheet.getColumn('I').width = 24;
+    sheet.getColumn('J').width = 16; 
+    sheet.getColumn('K').width = 22; 
+    sheet.getColumn('L').width = 22; 
+    sheet.getColumn('M').width = 18; 
 
     const buffer = await workbook.xlsx.writeBuffer();
     const fechaHoy = new Date().toISOString().split('T')[0];
@@ -321,65 +306,136 @@ function ListaEmpleados() {
       }
     });
 
-    let currentRow = 4;
-    todosLosEmpleados.forEach((emp, index) => {
-      const baseNum = Number(emp.salariobase || emp.salarioBase) || 0; 
-      const salarioDiario = baseNum / 6; 
+    // ==========================================
+    // LÓGICA DE AGRUPACIÓN Y SEPARACIÓN POR 7 FILAS
+    // ==========================================
+    const staff = todosLosEmpleados.filter(emp => !emp.cuadrilla || emp.cuadrilla === 'Sin Cuadrilla');
+    const cuadrillas = todosLosEmpleados.filter(emp => emp.cuadrilla && emp.cuadrilla !== 'Sin Cuadrilla');
 
-      let ausencias = 0;
-      let diasTrabajados = 0;
-      if (emp.asistencia_semana && Array.isArray(emp.asistencia_semana)) {
-        emp.asistencia_semana.forEach(a => { 
-          if (Number(a.dia) === 7) return; 
-          if (a.estado === 'Ausente') ausencias += 1; 
-          if (a.estado === 'Presente' || a.estado === 'Justificado') diasTrabajados += 1;
+    const staffPorPuesto = {};
+    staff.forEach(emp => {
+      const puesto = emp.puesto || 'Sin Puesto';
+      if (!staffPorPuesto[puesto]) staffPorPuesto[puesto] = [];
+      staffPorPuesto[puesto].push(emp);
+    });
+
+    const cuadrillasMap = {};
+    cuadrillas.forEach(emp => {
+      if (!cuadrillasMap[emp.cuadrilla]) cuadrillasMap[emp.cuadrilla] = [];
+      cuadrillasMap[emp.cuadrilla].push(emp);
+    });
+
+    // Asegurar que el Caporal quede siempre de primero en cada cuadrilla
+    Object.keys(cuadrillasMap).forEach(key => {
+       cuadrillasMap[key].sort((a, b) => {
+          if (a.puesto === 'Caporal' && b.puesto !== 'Caporal') return -1;
+          if (b.puesto === 'Caporal' && a.puesto !== 'Caporal') return 1;
+          return 0; 
+       });
+    });
+
+    const gruposParaExportar = [];
+    
+    // 1. Agregamos los grupos de Staff (Primero los roles que no sean cuadrilla ni caporal)
+    Object.keys(staffPorPuesto).sort().forEach(puesto => {
+        gruposParaExportar.push({
+            nombre: `GRUPO: ${puesto.toUpperCase()}`,
+            empleados: staffPorPuesto[puesto]
         });
-      }
+    });
+    
+    // 2. Agregamos las Cuadrillas en orden numérico
+    Object.keys(cuadrillasMap).sort((a, b) => {
+        const numA = parseInt(a.replace(/\D/g, '')) || 0;
+        const numB = parseInt(b.replace(/\D/g, '')) || 0;
+        return numA - numB;
+    }).forEach(cuad => {
+        gruposParaExportar.push({
+            nombre: cuad.toUpperCase(),
+            empleados: cuadrillasMap[cuad]
+        });
+    });
 
-      const pagoDolares = baseNum - (ausencias * salarioDiario);
-      const pagoFinal = pagoDolares < 0 ? 0 : pagoDolares;
-      const pagoBolivares = pagoFinal * tasa; 
-      const porcentajeAsistencia = (diasTrabajados / 6); 
-      
-      const nombreCompleto = `${emp.nombre || ''} ${emp.apellido || ''}`.trim().toUpperCase();
-      const puestoLimpio = (emp.puesto || '').toUpperCase();
+    let currentRow = 4;
+    let indexGlobal = 1;
 
-      const rowValues = [
-        index + 1,
-        nombreCompleto,
-        emp.dni || "",
-        puestoLimpio,
-        getIconoAsistenciaExcel(emp.asistencia_semana, 6), 
-        getIconoAsistenciaExcel(emp.asistencia_semana, 1), 
-        getIconoAsistenciaExcel(emp.asistencia_semana, 2), 
-        getIconoAsistenciaExcel(emp.asistencia_semana, 3), 
-        getIconoAsistenciaExcel(emp.asistencia_semana, 4), 
-        getIconoAsistenciaExcel(emp.asistencia_semana, 5), 
-        diasTrabajados,
-        porcentajeAsistencia, 
-        salarioDiario,       
-        pagoFinal,            
-        pagoBolivares,        
-        emp.cuentabancaria && String(emp.cuentabancaria).length >= 4 ? String(emp.cuentabancaria).substring(0, 4) : "",
-        emp.numerotelf || "",
-        emp.dni || "", 
-        emp.cuentabancaria || "",
-        "" 
-      ];
+    // Iteramos e imprimimos cada grupo con sus 7 filas de diferencia
+    gruposParaExportar.forEach((grupo, idxGrupo) => {
+        
+        // Título del grupo
+        sheet.mergeCells(`A${currentRow}:T${currentRow}`);
+        const cellTitle = sheet.getCell(`A${currentRow}`);
+        cellTitle.value = grupo.nombre;
+        cellTitle.font = { bold: true, size: 10, name: 'Arial', color: { argb: 'FFFFFF' } };
+        cellTitle.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '2C3E50' } };
+        cellTitle.alignment = { horizontal: 'center', vertical: 'middle' };
+        currentRow++;
 
-      const row = sheet.getRow(currentRow);
-      row.values = rowValues;
-      row.height = 20; 
+        // Empleados del grupo
+        grupo.empleados.forEach((emp) => {
+          const baseNum = Number(emp.salariobase || emp.salarioBase) || 0; 
+          const salarioDiario = baseNum / 6; 
 
-      row.eachCell((cell, colNumber) => {
-        cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
-        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-        cell.font = { size: 9, name: 'Arial' }; 
-        if (colNumber === 2) cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
-        if (colNumber === 12) cell.numFmt = '0%'; 
-        if (colNumber === 13 || colNumber === 14 || colNumber === 15) cell.numFmt = '#,##0.00'; 
-      });
-      currentRow++;
+          let ausencias = 0;
+          let diasTrabajados = 0;
+          if (emp.asistencia_semana && Array.isArray(emp.asistencia_semana)) {
+            emp.asistencia_semana.forEach(a => { 
+              if (Number(a.dia) === 7) return; 
+              if (a.estado === 'Ausente') ausencias += 1; 
+              if (a.estado === 'Presente' || a.estado === 'Justificado') diasTrabajados += 1;
+            });
+          }
+
+          const pagoDolares = baseNum - (ausencias * salarioDiario);
+          const pagoFinal = pagoDolares < 0 ? 0 : pagoDolares;
+          const pagoBolivares = pagoFinal * tasa; 
+          const porcentajeAsistencia = (diasTrabajados / 6); 
+          
+          const nombreCompleto = `${emp.nombre || ''} ${emp.apellido || ''}`.trim().toUpperCase();
+          const puestoLimpio = (emp.puesto || '').toUpperCase();
+
+          const rowValues = [
+            indexGlobal++,
+            nombreCompleto,
+            emp.dni || "",
+            puestoLimpio,
+            getIconoAsistenciaExcel(emp.asistencia_semana, 6), 
+            getIconoAsistenciaExcel(emp.asistencia_semana, 1), 
+            getIconoAsistenciaExcel(emp.asistencia_semana, 2), 
+            getIconoAsistenciaExcel(emp.asistencia_semana, 3), 
+            getIconoAsistenciaExcel(emp.asistencia_semana, 4), 
+            getIconoAsistenciaExcel(emp.asistencia_semana, 5), 
+            diasTrabajados,
+            porcentajeAsistencia, 
+            salarioDiario,       
+            pagoFinal,            
+            pagoBolivares,        
+            emp.cuentabancaria && String(emp.cuentabancaria).length >= 4 ? String(emp.cuentabancaria).substring(0, 4) : "",
+            emp.numerotelf || "",
+            emp.dni || "", 
+            emp.cuentabancaria || "",
+            "" 
+          ];
+
+          const row = sheet.getRow(currentRow);
+          row.values = rowValues;
+          row.height = 20; 
+
+          row.eachCell((cell, colNumber) => {
+            cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+            cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+            cell.font = { size: 9, name: 'Arial' }; 
+            if (colNumber === 2) cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+            if (colNumber === 12) cell.numFmt = '0%'; 
+            if (colNumber === 13 || colNumber === 14 || colNumber === 15) cell.numFmt = '#,##0.00'; 
+          });
+          currentRow++;
+        });
+
+        // SALTO EXACTO DE 7 FILAS VACÍAS ENTRE CADA GRUPO (Excepto en el último grupo)
+        if (idxGrupo < gruposParaExportar.length - 1) {
+            currentRow += 7; 
+        }
     });
 
     sheet.getColumn('A').width = 4;   
@@ -508,13 +564,16 @@ function ListaEmpleados() {
               <th className="p-3 sm:p-4 border-r border-slate-700">Cédula y Teléfono</th>
               <th className="p-3 sm:p-4 border-r border-slate-700 text-center">Estado</th>
               
-              {/* ASISTENCIA 6 DÍAS (Sin Domingo) */}
+              {/* ASISTENCIA 6 DÍAS */}
               <th className="p-2 sm:p-3 text-center font-bold bg-slate-700 border-r border-slate-600">Sáb</th>
               <th className="p-2 sm:p-3 text-center font-bold bg-slate-700 border-r border-slate-600">Lun</th>
               <th className="p-2 sm:p-3 text-center font-bold bg-slate-700 border-r border-slate-600">Mar</th>
               <th className="p-2 sm:p-3 text-center font-bold bg-slate-700 border-r border-slate-600">Mié</th>
               <th className="p-2 sm:p-3 text-center font-bold bg-slate-700 border-r border-slate-600">Jue</th>
               <th className="p-2 sm:p-3 text-center font-bold bg-slate-700 border-r border-slate-800">Vie</th>
+
+              {/* COLUMNA CUADRILLA AÑADIDA */}
+              <th className="p-3 sm:p-4 border-r border-slate-700 text-center text-yellow-300">Cuadrilla</th>
 
               <th className="p-3 sm:p-4 border-r border-slate-700 text-center">N° de Cuenta Bancaria</th>
               <th className="p-3 sm:p-4 border-r border-slate-700 text-right text-emerald-300">Base ($)</th>
@@ -524,7 +583,7 @@ function ListaEmpleados() {
           </thead>
           <tbody>
             {cargando ? (
-              <tr><td colSpan="14" className="text-center p-8 text-gray-500 font-semibold bg-gray-50">Cargando datos...</td></tr>
+              <tr><td colSpan="15" className="text-center p-8 text-gray-500 font-semibold bg-gray-50">Cargando datos...</td></tr>
             ) : empleados.length > 0 ? (
               empleados.map(emp => {
                 const baseNum = Number(emp.salariobase || emp.salarioBase) || 0; 
@@ -569,6 +628,11 @@ function ListaEmpleados() {
                     <td className="p-2 sm:p-3 text-center border-r border-slate-100 bg-gray-50">{getIconoAsistencia(emp.asistencia_semana, 4)}</td> 
                     <td className="p-2 sm:p-3 text-center border-r border-slate-200 bg-white">{getIconoAsistencia(emp.asistencia_semana, 5)}</td> 
 
+                    {/* MOSTRANDO LA CUADRILLA */}
+                    <td className="p-3 sm:p-4 border-r border-slate-200 text-center font-bold text-slate-700 bg-yellow-50/30">
+                      {emp.cuadrilla || 'Sin Cuadrilla'}
+                    </td>
+
                     <td className="p-3 sm:p-4 border-r border-slate-200 text-center">
                       {emp.cuentabancaria ? (
                         <span className={`font-mono text-[11px] sm:text-xs font-bold px-2.5 py-1.5 rounded-md border ${cuentaValida ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
@@ -597,7 +661,7 @@ function ListaEmpleados() {
                 );
               })
             ) : (
-              <tr><td colSpan="14" className="text-center p-8 text-gray-400 font-semibold bg-gray-50">No hay registros bajo este filtro.</td></tr>
+              <tr><td colSpan="15" className="text-center p-8 text-gray-400 font-semibold bg-gray-50">No hay registros bajo este filtro.</td></tr>
             )}
           </tbody>
         </table>
