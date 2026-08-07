@@ -13,6 +13,8 @@ function Dashboard() {
   const [mostrarBotonExportar, setMostrarBotonExportar] = useState(false);
   const [exportando, setExportando] = useState(false);
 
+  const backendUrl = 'https://nomia-pro-production.up.railway.app';
+
   useEffect(() => {
     cargarEstadisticas();
     verificarSiTocaExportar();
@@ -21,7 +23,7 @@ function Dashboard() {
   const cargarEstadisticas = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get('[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/dashboard/stats', {
+      const res = await axios.get(`${backendUrl}/dashboard/stats`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setStats(res.data);
@@ -35,7 +37,7 @@ function Dashboard() {
   const verificarSiTocaExportar = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get('[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/corte-semanal/verificar', {
+      const res = await axios.get(`${backendUrl}/corte-semanal/verificar`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.data.pendiente) {
@@ -52,7 +54,7 @@ function Dashboard() {
     setExportando(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.post('[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/corte-semanal/ejecutar', {}, {
+      const res = await axios.post(`${backendUrl}/corte-semanal/ejecutar`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -75,97 +77,94 @@ function Dashboard() {
     }
   };
 
-  // Protecciones para evitar los "undefined" si el backend responde lento o con info vieja
   const asistenciaSegura = stats.porcentajeAsistencia !== undefined ? stats.porcentajeAsistencia : '0.00';
   const nominaSegura = stats.totalNomina !== undefined ? stats.totalNomina : '0.00';
 
   return (
-    <div className="w-full max-w-5xl mx-auto space-y-6 animate-fade-in">
+    <div className="w-full max-w-5xl mx-auto space-y-6 px-2 sm:px-4 animate-fade-in">
       
       {/* ENCABEZADO */}
-      <div className="bg-slate-800 rounded-xl p-8 text-white shadow-lg flex flex-col md:flex-row justify-between items-center gap-4">
-        <div>
-          <h2 className="text-3xl font-black mb-2">📊 Panel Principal (Dashboard)</h2>
-          <p className="text-slate-300">Resumen operativo del personal, finanzas y métricas de la finca.</p>
+      <div className="bg-slate-800 rounded-xl p-4 sm:p-8 text-white shadow-lg flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="text-center md:text-left">
+          <h2 className="text-2xl sm:text-3xl font-black mb-2">📊 Dashboard</h2>
+          <p className="text-xs sm:text-sm text-slate-300">Resumen operativo, finanzas y métricas.</p>
         </div>
 
         {mostrarBotonExportar && (
           <button 
             onClick={ejecutarCorteYExportar}
             disabled={exportando}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg font-bold transition shadow flex items-center gap-2 text-sm whitespace-nowrap animate-bounce disabled:opacity-50 disabled:animate-none shrink-0"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white w-full md:w-auto px-5 py-3 rounded-lg font-bold transition shadow flex items-center justify-center gap-2 text-sm animate-bounce disabled:opacity-50 disabled:animate-none"
           >
             {exportando ? 'Exportando...' : '📥 Exportar y Limpiar'}
           </button>
         )}
       </div>
 
-      {/* TARJETAS DE MÉTRICAS (Estructura 2x2 con md:grid-cols-2) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* TARJETAS DE MÉTRICAS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
         
         {/* TARJETA 1: EMPLEADOS ACTIVOS */}
-        <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-6 flex flex-col justify-between hover:-translate-y-1 transition transform h-full">
+        <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-5 flex flex-col justify-between hover:shadow-xl transition h-full">
           <div className="flex justify-between items-start gap-4">
             <div className="min-w-0">
-              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider truncate">Empleados Activos</p>
-              <h3 className="text-4xl font-black text-slate-800 mt-2 truncate">
+              <p className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider truncate">Empleados Activos</p>
+              <h3 className="text-3xl sm:text-4xl font-black text-slate-800 mt-2 truncate">
                 {cargando ? '...' : stats.activos}
               </h3>
             </div>
-            <div className="bg-green-100 p-3 rounded-xl text-green-700 text-xl font-bold shrink-0">👥</div>
+            <div className="bg-green-100 p-2 sm:p-3 rounded-xl text-green-700 text-lg sm:text-xl font-bold shrink-0">👥</div>
           </div>
-          <p className="text-xs text-green-600 font-semibold mt-4">🟢 Trabajando actualmente</p>
+          <p className="text-[10px] sm:text-xs text-green-600 font-semibold mt-4">🟢 Trabajando actualmente</p>
         </div>
 
         {/* TARJETA 2: EMPLEADOS SANCIONADOS */}
-        <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-6 flex flex-col justify-between hover:-translate-y-1 transition transform h-full">
+        <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-5 flex flex-col justify-between hover:shadow-xl transition h-full">
           <div className="flex justify-between items-start gap-4">
             <div className="min-w-0">
-              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider truncate">Sancionados</p>
-              <h3 className="text-4xl font-black text-slate-800 mt-2 truncate">
+              <p className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider truncate">Sancionados</p>
+              <h3 className="text-3xl sm:text-4xl font-black text-slate-800 mt-2 truncate">
                 {cargando ? '...' : stats.sancionados}
               </h3>
             </div>
-            <div className="bg-orange-100 p-3 rounded-xl text-orange-700 text-xl font-bold shrink-0">⏱️</div>
+            <div className="bg-orange-100 p-2 sm:p-3 rounded-xl text-orange-700 text-lg sm:text-xl font-bold shrink-0">⏱️</div>
           </div>
-          <p className="text-xs text-orange-600 font-semibold mt-4">🟡 Suspendidos temporalmente</p>
+          <p className="text-[10px] sm:text-xs text-orange-600 font-semibold mt-4">🟡 Suspendidos temporalmente</p>
         </div>
 
         {/* TARJETA 3: PORCENTAJE DE ASISTENCIA */}
-        <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-6 flex flex-col justify-between hover:-translate-y-1 transition transform h-full">
+        <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-5 flex flex-col justify-between hover:shadow-xl transition h-full">
           <div className="flex justify-between items-start gap-4">
             <div className="min-w-0 w-full">
-              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider truncate">% Asistencia Global</p>
-              <h3 className="text-4xl font-black text-slate-800 mt-2 truncate">
+              <p className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider truncate">% Asistencia Global</p>
+              <h3 className="text-3xl sm:text-4xl font-black text-slate-800 mt-2 truncate">
                 {cargando ? '...' : `${asistenciaSegura}%`}
               </h3>
             </div>
-            <div className="bg-blue-100 p-3 rounded-xl text-blue-700 text-xl font-bold shrink-0">📈</div>
+            <div className="bg-blue-100 p-2 sm:p-3 rounded-xl text-blue-700 text-lg sm:text-xl font-bold shrink-0">📈</div>
           </div>
-          
           <div className="mt-4 w-full bg-slate-100 rounded-full h-2">
             <div className="bg-blue-600 h-2 rounded-full transition-all duration-1000" style={{ width: `${Number(asistenciaSegura) || 0}%` }}></div>
           </div>
         </div>
 
-        {/* TARJETA 4: PROYECCIÓN DE NÓMINA (PLATA) */}
-        <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl shadow-lg border border-emerald-200 p-6 flex flex-col justify-between hover:-translate-y-1 transition transform h-full">
+        {/* TARJETA 4: PROYECCIÓN DE NÓMINA */}
+        <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl shadow-lg border border-emerald-200 p-5 flex flex-col justify-between hover:shadow-xl transition h-full">
           <div className="flex justify-between items-start gap-4">
             <div className="min-w-0">
-              <p className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider truncate">Proyección Nómina</p>
-              <h3 className="text-4xl font-black text-emerald-900 mt-2 tracking-tight truncate">
+              <p className="text-[10px] sm:text-[11px] font-bold text-emerald-800 uppercase tracking-wider truncate">Proyección Nómina</p>
+              <h3 className="text-3xl sm:text-4xl font-black text-emerald-900 mt-2 tracking-tight truncate">
                 {cargando ? '...' : `$${nominaSegura}`}
               </h3>
             </div>
-            <div className="bg-emerald-200 p-3 rounded-xl text-emerald-800 text-xl font-bold shrink-0">💸</div>
+            <div className="bg-emerald-200 p-2 sm:p-3 rounded-xl text-emerald-800 text-lg sm:text-xl font-bold shrink-0">💸</div>
           </div>
-          <p className="text-xs text-emerald-700 mt-4 border-t border-emerald-200 pt-3 font-medium">
+          <p className="text-[10px] sm:text-xs text-emerald-700 mt-4 border-t border-emerald-200 pt-3 font-medium">
             Dinero estimado a pagar esta semana.
           </p>
         </div>
 
       </div>
-
     </div>
   );
 }

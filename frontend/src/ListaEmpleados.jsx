@@ -14,6 +14,7 @@ function ListaEmpleados() {
   const [totalRegistros, setTotalRegistros] = useState(0);
 
   const rolUsuario = (localStorage.getItem('rol') || 'asistente').toLowerCase();
+  const backendUrl = 'https://nomia-pro-production.up.railway.app';
 
   const [mostrarModalExcel, setMostrarModalExcel] = useState(false);
   const [numeroSemana, setNumeroSemana] = useState('');
@@ -22,7 +23,7 @@ function ListaEmpleados() {
   const hoy = new Date();
   const esSabado = hoy.getDay() === 6; 
   const hora = hoy.getHours(); 
-  // Restricción exacta: Sábados de 3:00 PM a 8:30 PM
+  // Restricción exacta: Sábados de 3:00 PM al término de la noche
   const esHoraOficial = esSabado && (hora >= 15 && (hora < 20 || (hora === 20 && hoy.getMinutes() <= 30)));
 
   const supervisorBloqueado = esHoraOficial && rolUsuario === 'supervisor';
@@ -35,7 +36,7 @@ function ListaEmpleados() {
     setCargando(true);
     try {
       const token = localStorage.getItem('token');
-      const respuesta = await axios.get(`[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/empleados?page=${pagina}&limit=50&estado=${estado}`, {
+      const respuesta = await axios.get(`${backendUrl}/empleados?page=${pagina}&limit=50&estado=${estado}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setEmpleados(respuesta.data.empleados || []);
@@ -49,11 +50,10 @@ function ListaEmpleados() {
     }
   };
 
-  // Función auxiliar para traer a TODOS los empleados de golpe solo para los reportes de Excel
   const obtenerTodosParaExcel = async () => {
     try {
       const token = localStorage.getItem('token');
-      const respuesta = await axios.get(`[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/empleados?limit=all&estado=${filtroEstado}`, {
+      const respuesta = await axios.get(`${backendUrl}/empleados?limit=all&estado=${filtroEstado}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       return respuesta.data.empleados || [];
@@ -115,7 +115,7 @@ function ListaEmpleados() {
   const registrarLogExportacion = async (tipo, detalles) => {
     try {
       const token = localStorage.getItem('token');
-      await axios.post('[https://nomia-pro-production.up.railway.app](https://nomia-pro-production.up.railway.app)/auditoria/exportar', {
+      await axios.post(`${backendUrl}/auditoria/exportar`, {
         tipoReporte: tipo,
         detalles: detalles
       }, {
@@ -286,8 +286,6 @@ function ListaEmpleados() {
       
       const nombreCompleto = `${emp.nombre || ''} ${emp.apellido || ''}`.trim().toUpperCase();
       const puestoLimpio = (emp.puesto || '').toUpperCase();
-      const bancoCodigo = emp.cuentabancaria && String(emp.cuentabancaria).length >= 4 
-                          ? String(emp.cuentabancaria).substring(0, 4) : "";
 
       const rowValues = [
         index + 1,
@@ -302,10 +300,10 @@ function ListaEmpleados() {
         getIconoAsistenciaExcel(emp.asistencia_semana, 6),
         diasTrabajados,
         porcentajeAsistencia, 
-        salarioDiario,        
+        salarioDiario,       
         pagoFinal,            
         pagoBolivares,        
-        bancoCodigo,
+        emp.cuentabancaria && String(emp.cuentabancaria).length >= 4 ? String(emp.cuentabancaria).substring(0, 4) : "",
         emp.numerotelf || "",
         emp.dni || "", 
         emp.cuentabancaria || "",
@@ -355,13 +353,13 @@ function ListaEmpleados() {
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-lg p-6 w-full animate-fade-in relative">
+    <div className="bg-white rounded-xl shadow-lg p-3 sm:p-6 w-full animate-fade-in relative">
       
       {mostrarModalExcel && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
-          <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm border-t-8 border-green-500">
-            <h3 className="text-2xl font-black text-slate-800 mb-2">Corte de Nómina 📊</h3>
-            <p className="text-sm text-slate-500 font-medium mb-6">Ingresa los datos para calcular y generar el archivo oficial de pagos.</p>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in p-4">
+          <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-2xl w-full max-w-sm border-t-8 border-green-500">
+            <h3 className="text-xl sm:text-2xl font-black text-slate-800 mb-2">Corte de Nómina 📊</h3>
+            <p className="text-xs sm:text-sm text-slate-500 font-medium mb-6">Ingresa los datos para calcular y generar el archivo oficial de pagos.</p>
             
             <label className="block text-xs font-bold text-slate-600 mb-1 uppercase">Número de Semana</label>
             <input 
@@ -369,7 +367,7 @@ function ListaEmpleados() {
               value={numeroSemana} 
               onChange={e => setNumeroSemana(e.target.value)} 
               placeholder="Ej: 29" 
-              className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none font-bold text-center mb-4 text-slate-700 bg-slate-50"
+              className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none font-bold text-center mb-4 text-slate-700 bg-slate-50 text-sm"
             />
 
             <label className="block text-xs font-bold text-slate-600 mb-1 uppercase">Tasa BCV Actual (Bs.)</label>
@@ -379,19 +377,19 @@ function ListaEmpleados() {
               value={tasaBCV} 
               onChange={e => setTasaBCV(e.target.value)} 
               placeholder="Ej: 36.50" 
-              className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none font-bold text-center mb-6 text-emerald-700 bg-emerald-50"
+              className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none font-bold text-center mb-6 text-emerald-700 bg-emerald-50 text-sm"
             />
             
             <div className="flex justify-between gap-3">
               <button 
                 onClick={() => { setMostrarModalExcel(false); setNumeroSemana(''); setTasaBCV(''); }} 
-                className="w-full px-4 py-3 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition font-bold"
+                className="w-full px-4 py-3 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition font-bold text-sm"
               >
                 Cancelar
               </button>
               <button 
                 onClick={generarArchivoExcelOficial} 
-                className="w-full px-4 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl transition shadow-lg"
+                className="w-full px-4 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl transition shadow-lg text-sm"
               >
                 Generar
               </button>
@@ -400,27 +398,28 @@ function ListaEmpleados() {
         </div>
       )}
 
-      <div className="flex justify-between items-center mb-6 border-b pb-4">
+      {/* Encabezado Responsivo */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 border-b pb-4 gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-gray-800">📋 Lista, Asistencia y Nómina ({totalRegistros} total)</h2>
-          <p className="text-sm text-gray-500 mt-1">Control visual de los trabajadores, su asistencia y salarios.</p>
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">📋 Lista, Asistencia y Nómina ({totalRegistros} total)</h2>
+          <p className="text-xs sm:text-sm text-gray-500 mt-1">Control visual de los trabajadores, su asistencia y salarios.</p>
         </div>
         
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full lg:w-auto">
           {!esHoraOficial && rolUsuario === 'master' && (
             <button 
               onClick={() => setMostrarModalExcel(true)} 
-              className="bg-amber-600 text-white font-bold py-2.5 px-4 rounded-lg shadow-md hover:bg-amber-700 transition flex items-center gap-2 transform hover:-translate-y-0.5 text-sm"
-              title="Acceso exclusivo del Master para generar la nómina oficial en cualquier momento"
+              className="bg-amber-600 text-white font-bold py-2.5 px-3 sm:px-4 rounded-lg shadow-md hover:bg-amber-700 transition flex items-center gap-2 text-xs sm:text-sm flex-1 lg:flex-none justify-center"
+              title="Acceso exclusivo del Master para generar la nómina oficial"
             >
-              ⭐ Forzar Nómina Oficial (Master)
+              ⭐ Forzar Nómina Oficial
             </button>
           )}
 
           {!supervisorBloqueado && (
             <button 
               onClick={intentarExportar} 
-              className="bg-green-600 text-white font-bold py-2.5 px-5 rounded-lg shadow-md hover:bg-green-700 transition flex items-center gap-2 transform hover:-translate-y-0.5"
+              className="bg-green-600 text-white font-bold py-2.5 px-4 sm:px-5 rounded-lg shadow-md hover:bg-green-700 transition flex items-center gap-2 text-xs sm:text-sm flex-1 lg:flex-none justify-center"
             >
               📊 Exportar Archivo
             </button>
@@ -428,37 +427,39 @@ function ListaEmpleados() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-6">
-        <span className="p-2 font-semibold text-gray-600">Filtrar por:</span>
+      {/* Filtros deslizables para móviles */}
+      <div className="flex items-center gap-2 mb-6 overflow-x-auto whitespace-nowrap pb-2">
+        <span className="text-xs sm:text-sm font-semibold text-gray-600">Filtrar por:</span>
         {['Todos', 'Activo', 'Vetado', 'Sancionado', 'Inactivo'].map(estado => (
           <button key={estado} onClick={() => { setFiltroEstado(estado); setPaginaActual(1); }}
-            className={`px-4 py-2 rounded-lg font-medium transition ${filtroEstado === estado ? 'bg-blue-600 text-white shadow' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition ${filtroEstado === estado ? 'bg-blue-600 text-white shadow' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
           >
             {estado}
           </button>
         ))}
       </div>
 
+      {/* Tabla con scroll lateral adaptado */}
       <div className="overflow-x-auto border rounded-lg shadow-sm">
-        <table className="w-full text-left border-collapse whitespace-nowrap">
+        <table className="w-full text-left border-collapse whitespace-nowrap text-xs sm:text-sm">
           <thead>
             <tr className="bg-slate-800 text-white">
-              <th className="p-4 border-r border-slate-700">Nombre Completo</th>
-              <th className="p-4 border-r border-slate-700">Cédula y Teléfono</th>
-              <th className="p-4 border-r border-slate-700 text-center">Estado</th>
+              <th className="p-3 sm:p-4 border-r border-slate-700">Nombre Completo</th>
+              <th className="p-3 sm:p-4 border-r border-slate-700">Cédula y Teléfono</th>
+              <th className="p-3 sm:p-4 border-r border-slate-700 text-center">Estado</th>
               
-              <th className="p-3 text-center text-sm font-bold bg-slate-700 border-r border-slate-600">Lun</th>
-              <th className="p-3 text-center text-sm font-bold bg-slate-700 border-r border-slate-600">Mar</th>
-              <th className="p-3 text-center text-sm font-bold bg-slate-700 border-r border-slate-600">Mié</th>
-              <th className="p-3 text-center text-sm font-bold bg-slate-700 border-r border-slate-600">Jue</th>
-              <th className="p-3 text-center text-sm font-bold bg-slate-700 border-r border-slate-600">Vie</th>
-              <th className="p-3 text-center text-sm font-bold bg-slate-700 border-r border-slate-800">Sáb</th>
+              <th className="p-2 sm:p-3 text-center font-bold bg-slate-700 border-r border-slate-600">Lun</th>
+              <th className="p-2 sm:p-3 text-center font-bold bg-slate-700 border-r border-slate-600">Mar</th>
+              <th className="p-2 sm:p-3 text-center font-bold bg-slate-700 border-r border-slate-600">Mié</th>
+              <th className="p-2 sm:p-3 text-center font-bold bg-slate-700 border-r border-slate-600">Jue</th>
+              <th className="p-2 sm:p-3 text-center font-bold bg-slate-700 border-r border-slate-600">Vie</th>
+              <th className="p-2 sm:p-3 text-center font-bold bg-slate-700 border-r border-slate-800">Sáb</th>
 
-              <th className="p-4 border-r border-slate-700 text-center">N° de Cuenta Bancaria</th>
+              <th className="p-3 sm:p-4 border-r border-slate-700 text-center">N° de Cuenta Bancaria</th>
 
-              <th className="p-4 border-r border-slate-700 text-right text-emerald-300">Base ($)</th>
-              <th className="p-4 border-r border-slate-700 text-right text-emerald-400 font-black">Final ($)</th>
-              <th className="p-4 text-right text-blue-300">Final (Bs)</th>
+              <th className="p-3 sm:p-4 border-r border-slate-700 text-right text-emerald-300">Base ($)</th>
+              <th className="p-3 sm:p-4 border-r border-slate-700 text-right text-emerald-400 font-black">Final ($)</th>
+              <th className="p-3 sm:p-4 text-right text-blue-300">Final (Bs)</th>
             </tr>
           </thead>
           <tbody>
@@ -468,29 +469,27 @@ function ListaEmpleados() {
               empleados.map(emp => {
                 const baseNum = Number(emp.salariobase || emp.salarioBase) || 0; 
                 const pagoDolares = calcularPagoDolares(baseNum, emp.asistencia_semana);
-                
                 const pagoBolivares = pagoDolares * 40; 
                 const tieneDescuento = pagoDolares < baseNum;
-
                 const cuentaValida = emp.cuentabancaria && String(emp.cuentabancaria).length === 20;
                 const esInactivoConFiltroTodos = filtroEstado === 'Todos' && emp.estado !== 'Activo';
 
                 return (
                   <tr key={emp.empleadoid} className={`border-b transition hover:bg-slate-50 ${esInactivoConFiltroTodos ? 'opacity-60 bg-gray-50' : ''}`}>
-                    <td className="p-4 font-bold text-slate-700 border-r border-slate-200">
+                    <td className="p-3 sm:p-4 font-bold text-slate-700 border-r border-slate-200">
                       {emp.apellido}, {emp.nombre}
                       <span className="block text-[10px] text-slate-400 font-normal mt-0.5">{emp.puesto}</span>
                     </td>
                     
-                    <td className="p-4 border-r border-slate-200">
+                    <td className="p-3 sm:p-4 border-r border-slate-200">
                       <div className="font-mono text-gray-700 font-bold">{emp.dni}</div>
                       <div className="text-[11px] text-gray-500 mt-1 flex items-center gap-1">
                         📞 {emp.numerotelf}
                       </div>
                     </td>
 
-                    <td className="p-4 text-center border-r border-slate-200">
-                      <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                    <td className="p-3 sm:p-4 text-center border-r border-slate-200">
+                      <span className={`px-2.5 py-1 rounded-full text-[9px] sm:text-[10px] font-bold uppercase tracking-wider ${
                         emp.estado === 'Activo' ? 'bg-green-100 text-green-700' :
                         emp.estado === 'Vetado' ? 'bg-red-100 text-red-700' : 
                         emp.estado === 'Inactivo' ? 'bg-gray-200 text-gray-700' : 'bg-yellow-100 text-yellow-700'
@@ -499,35 +498,35 @@ function ListaEmpleados() {
                       </span>
                     </td>
                     
-                    <td className="p-3 text-center border-r border-slate-100 bg-gray-50">{getIconoAsistencia(emp.asistencia_semana, 1)}</td>
-                    <td className="p-3 text-center border-r border-slate-100 bg-white">{getIconoAsistencia(emp.asistencia_semana, 2)}</td>
-                    <td className="p-3 text-center border-r border-slate-100 bg-gray-50">{getIconoAsistencia(emp.asistencia_semana, 3)}</td>
-                    <td className="p-3 text-center border-r border-slate-100 bg-white">{getIconoAsistencia(emp.asistencia_semana, 4)}</td>
-                    <td className="p-3 text-center border-r border-slate-100 bg-gray-50">{getIconoAsistencia(emp.asistencia_semana, 5)}</td>
-                    <td className="p-3 text-center border-r border-slate-200 bg-white">{getIconoAsistencia(emp.asistencia_semana, 6)}</td>
+                    <td className="p-2 sm:p-3 text-center border-r border-slate-100 bg-gray-50">{getIconoAsistencia(emp.asistencia_semana, 1)}</td>
+                    <td className="p-2 sm:p-3 text-center border-r border-slate-100 bg-white">{getIconoAsistencia(emp.asistencia_semana, 2)}</td>
+                    <td className="p-2 sm:p-3 text-center border-r border-slate-100 bg-gray-50">{getIconoAsistencia(emp.asistencia_semana, 3)}</td>
+                    <td className="p-2 sm:p-3 text-center border-r border-slate-100 bg-white">{getIconoAsistencia(emp.asistencia_semana, 4)}</td>
+                    <td className="p-2 sm:p-3 text-center border-r border-slate-100 bg-gray-50">{getIconoAsistencia(emp.asistencia_semana, 5)}</td>
+                    <td className="p-2 sm:p-3 text-center border-r border-slate-200 bg-white">{getIconoAsistencia(emp.asistencia_semana, 6)}</td>
 
-                    <td className="p-4 border-r border-slate-200 text-center">
+                    <td className="p-3 sm:p-4 border-r border-slate-200 text-center">
                       {emp.cuentabancaria ? (
-                        <span className={`font-mono text-xs font-bold px-3 py-1.5 rounded-md border ${cuentaValida ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                        <span className={`font-mono text-[11px] sm:text-xs font-bold px-2.5 py-1.5 rounded-md border ${cuentaValida ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
                           {emp.cuentabancaria}
                         </span>
                       ) : (
-                        <span className="text-[11px] text-gray-400 font-semibold bg-gray-100 px-3 py-1 rounded-md border border-gray-200">
+                        <span className="text-[10px] sm:text-[11px] text-gray-400 font-semibold bg-gray-100 px-2.5 py-1 rounded-md border border-gray-200">
                           No registrada
                         </span>
                       )}
                     </td>
 
-                    <td className="p-4 text-right font-medium text-slate-500 border-r border-slate-200">
+                    <td className="p-3 sm:p-4 text-right font-medium text-slate-500 border-r border-slate-200">
                       ${baseNum.toFixed(2)}
                     </td>
-                    <td className="p-4 text-right border-r border-slate-200">
-                      <span className={`font-black text-lg ${tieneDescuento ? 'text-red-600' : 'text-emerald-600'}`}>
+                    <td className="p-3 sm:p-4 text-right border-r border-slate-200">
+                      <span className={`font-black text-base sm:text-lg ${tieneDescuento ? 'text-red-600' : 'text-emerald-600'}`}>
                         ${pagoDolares.toFixed(2)}
                       </span>
                     </td>
-                    <td className="p-4 text-right font-bold text-blue-700 bg-blue-50/30">
-                      <span className="text-[10px] font-normal text-slate-400 block mb-0.5">Ref. Visual</span>
+                    <td className="p-3 sm:p-4 text-right font-bold text-blue-700 bg-blue-50/30">
+                      <span className="text-[9px] font-normal text-slate-400 block mb-0.5">Ref. Visual</span>
                       Bs. {pagoBolivares.toFixed(2)}
                     </td>
                   </tr>
@@ -540,23 +539,23 @@ function ListaEmpleados() {
         </table>
       </div>
 
-      {/* CONTROLES DE PAGINACIÓN */}
-      <div className="flex justify-between items-center mt-6 pt-4 border-t">
-        <span className="text-sm font-semibold text-slate-600">
-          Mostrando página <strong className="text-slate-900">{paginaActual}</strong> de <strong className="text-slate-900">{totalPaginas}</strong> (Total: {totalRegistros} trabajadores)
+      {/* Controles de Paginación Adaptados */}
+      <div className="flex flex-col sm:flex-row justify-between items-center mt-6 pt-4 border-t gap-3">
+        <span className="text-xs sm:text-sm font-semibold text-slate-600 text-center sm:text-left">
+          Página <strong className="text-slate-900">{paginaActual}</strong> de <strong className="text-slate-900">{totalPaginas}</strong> ({totalRegistros} total)
         </span>
-        <div className="flex gap-2">
+        <div className="flex gap-2 w-full sm:w-auto">
           <button 
             onClick={() => setPaginaActual(prev => Math.max(prev - 1, 1))}
             disabled={paginaActual === 1 || cargando}
-            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg transition disabled:opacity-40 text-sm"
+            className="flex-1 sm:flex-none px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg transition disabled:opacity-40 text-xs sm:text-sm"
           >
             ← Anterior
           </button>
           <button 
             onClick={() => setPaginaActual(prev => Math.min(prev + 1, totalPaginas))}
             disabled={paginaActual === totalPaginas || cargando}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition disabled:opacity-40 text-sm"
+            className="flex-1 sm:flex-none px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition disabled:opacity-40 text-xs sm:text-sm"
           >
             Siguiente →
           </button>
