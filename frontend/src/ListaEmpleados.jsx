@@ -20,16 +20,20 @@ function ListaEmpleados() {
   const [numeroSemana, setNumeroSemana] = useState('');
   const [tasaBCV, setTasaBCV] = useState('');
 
-  // --- LÓGICA DE HORARIOS Y ROLES ---
+  // --- LÓGICA DE HORARIOS Y ROLES (Viernes 6:30 PM) ---
   const hoy = new Date();
   const esViernes = hoy.getDay() === 5; 
   const hora = hoy.getHours(); 
-  
-  // Administrador / Asistente exporta nómina solo Viernes de 4:00 PM (16:00) a 10:00 PM (22:00)
-  const esHoraOficialAdmin = esViernes && (hora >= 16 && hora <= 22);
+  const minutos = hoy.getMinutes();
 
-  // Supervisor bloqueado de exportar los Viernes desde las 4:00 PM hasta la medianoche (23:59)
-  const supervisorBloqueado = esViernes && hora >= 16 && rolUsuario === 'supervisor';
+  // Es Viernes después de las 6:30 PM (18:30)
+  const esDespues630PM = esViernes && (hora > 18 || (hora === 18 && minutos >= 30));
+  
+  // Administrador / Asistente exporta nómina los Viernes desde las 6:30 PM hasta las 11:59 PM (23:59)
+  const esHoraOficialAdmin = esDespues630PM;
+
+  // Supervisor bloqueado de exportar los Viernes desde las 6:30 PM hasta la medianoche
+  const supervisorBloqueado = esDespues630PM && rolUsuario === 'supervisor';
 
   useEffect(() => {
     cargarEmpleados(paginaActual, filtroEstado);
@@ -138,18 +142,25 @@ function ListaEmpleados() {
     }
   };
 
-  // Lógica principal de quién puede exportar qué y a qué hora
+  // --- LÓGICA PRINCIPAL DEL BOTÓN VERDE CORREGIDA ---
   const intentarExportar = () => {
-    if (rolUsuario === 'supervisor') {
+    // Si el usuario es MASTER, el botón verde SIEMPRE exporta el BÁSICO
+    if (rolUsuario === 'master') {
       generarArchivoExcelBasico();
-    } else if (rolUsuario === 'administrador' || rolUsuario === 'asistente' || rolUsuario === 'asistente de administracion') {
+    } 
+    // Si es Supervisor, el botón verde SIEMPRE exporta el BÁSICO (y se oculta a las 6:30pm por otra lógica)
+    else if (rolUsuario === 'supervisor') {
+      generarArchivoExcelBasico();
+    } 
+    // Administrador y Asistente
+    else {
       if (esHoraOficialAdmin) {
+        // Solo ellos ven el modal los viernes después de las 6:30 PM en el botón verde
         setMostrarModalExcel(true);
       } else {
+        // Antes de las 6:30 PM, exportan el BÁSICO
         generarArchivoExcelBasico();
       }
-    } else {
-      setMostrarModalExcel(true); 
     }
   };
 
