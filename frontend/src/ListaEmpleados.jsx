@@ -179,7 +179,6 @@ function ListaEmpleados() {
     titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF00' } }; 
     sheet.getRow(1).height = 25;
 
-    // Se añadió "CUADRILLA" al exportado básico
     const headers = ["#", "NOMBRES Y APELLIDOS", "DIRECCIÓN", "CÉDULA", "TELÉFONO", "PUESTO", "CUADRILLA", "ESTADO", "CUENTA BANCARIA", "SALARIO BASE ($)", "FECHA DE CONTRATACIÓN", "TIEMPO LABORADO", "N° SUSPENSIONES"];
     const row2 = sheet.getRow(2);
     row2.values = headers;
@@ -234,7 +233,7 @@ function ListaEmpleados() {
     sheet.getColumn('D').width = 13;
     sheet.getColumn('E').width = 15;
     sheet.getColumn('F').width = 15;
-    sheet.getColumn('G').width = 16; // Cuadrilla
+    sheet.getColumn('G').width = 16;
     sheet.getColumn('H').width = 12;
     sheet.getColumn('I').width = 24;
     sheet.getColumn('J').width = 16; 
@@ -265,6 +264,7 @@ function ListaEmpleados() {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Nómina Oficial', { views: [{ showGridLines: false }] });
 
+    // Título Principal Arriba
     sheet.mergeCells('A1:T1'); 
     const titleCell = sheet.getCell('A1');
     titleCell.value = `ASISTENCIA DEL MES DE ${mesActual} ${anioActual} - SEMANA ${numeroSemana} (TASA BCV: ${tasa.toFixed(2)} Bs)`;
@@ -282,29 +282,33 @@ function ListaEmpleados() {
     ];
     
     const colLetters = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T'];
-    sheet.getRow(2).height = 28;
-    sheet.getRow(3).height = 18;
-    
-    headers.forEach((header, i) => {
-      const col = colLetters[i];
-      const isDayColumn = (i >= 4 && i <= 9); 
-      const cellRow2 = sheet.getCell(`${col}2`);
-      cellRow2.value = header;
-      cellRow2.font = { bold: true, size: 8, name: 'Arial' }; 
-      cellRow2.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; 
+
+    // Función auxiliar para insertar la cabecera completa de columnas (días, montos, etc.)
+    const escribirCabeceraTabla = (filaNum) => {
+      sheet.getRow(filaNum).height = 28;
+      sheet.getRow(filaNum + 1).height = 18;
       
-      if (!isDayColumn) {
-        sheet.mergeCells(`${col}2:${col}3`);
-        sheet.getCell(`${col}2`).border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
-      } else {
-        cellRow2.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
-        const cellRow3 = sheet.getCell(`${col}3`);
-        cellRow3.value = fechasSemana[i - 4]; 
-        cellRow3.font = { bold: true, size: 9, name: 'Arial' };
-        cellRow3.alignment = { horizontal: 'center', vertical: 'middle' };
-        cellRow3.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
-      }
-    });
+      headers.forEach((header, i) => {
+        const col = colLetters[i];
+        const isDayColumn = (i >= 4 && i <= 9); 
+        const cellRow2 = sheet.getCell(`${col}${filaNum}`);
+        cellRow2.value = header;
+        cellRow2.font = { bold: true, size: 8, name: 'Arial' }; 
+        cellRow2.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; 
+        
+        if (!isDayColumn) {
+          sheet.mergeCells(`${col}${filaNum}:${col}${filaNum + 1}`);
+          sheet.getCell(`${col}${filaNum}`).border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+        } else {
+          cellRow2.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+          const cellRow3 = sheet.getCell(`${col}${filaNum + 1}`);
+          cellRow3.value = fechasSemana[i - 4]; 
+          cellRow3.font = { bold: true, size: 9, name: 'Arial' };
+          cellRow3.alignment = { horizontal: 'center', vertical: 'middle' };
+          cellRow3.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+        }
+      });
+    };
 
     // ==========================================
     // LÓGICA DE AGRUPACIÓN Y SEPARACIÓN POR 7 FILAS
@@ -325,7 +329,6 @@ function ListaEmpleados() {
       cuadrillasMap[emp.cuadrilla].push(emp);
     });
 
-    // Asegurar que el Caporal quede siempre de primero en cada cuadrilla
     Object.keys(cuadrillasMap).forEach(key => {
        cuadrillasMap[key].sort((a, b) => {
           if (a.puesto === 'Caporal' && b.puesto !== 'Caporal') return -1;
@@ -336,7 +339,7 @@ function ListaEmpleados() {
 
     const gruposParaExportar = [];
     
-    // 1. Agregamos los grupos de Staff (Primero los roles que no sean cuadrilla ni caporal)
+    // 1. Staff (Primero los roles que no sean cuadrilla ni caporal)
     Object.keys(staffPorPuesto).sort().forEach(puesto => {
         gruposParaExportar.push({
             nombre: `GRUPO: ${puesto.toUpperCase()}`,
@@ -344,7 +347,7 @@ function ListaEmpleados() {
         });
     });
     
-    // 2. Agregamos las Cuadrillas en orden numérico
+    // 2. Cuadrillas en orden numérico
     Object.keys(cuadrillasMap).sort((a, b) => {
         const numA = parseInt(a.replace(/\D/g, '')) || 0;
         const numB = parseInt(b.replace(/\D/g, '')) || 0;
@@ -356,22 +359,26 @@ function ListaEmpleados() {
         });
     });
 
-    let currentRow = 4;
+    let currentRow = 3; // Arrancamos en la fila 3
     let indexGlobal = 1;
 
-    // Iteramos e imprimimos cada grupo con sus 7 filas de diferencia
     gruposParaExportar.forEach((grupo, idxGrupo) => {
         
-        // Título del grupo
+        // 1. Título del grupo (Fondo oscuro)
         sheet.mergeCells(`A${currentRow}:T${currentRow}`);
         const cellTitle = sheet.getCell(`A${currentRow}`);
         cellTitle.value = grupo.nombre;
         cellTitle.font = { bold: true, size: 10, name: 'Arial', color: { argb: 'FFFFFF' } };
         cellTitle.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '2C3E50' } };
         cellTitle.alignment = { horizontal: 'center', vertical: 'middle' };
+        sheet.getRow(currentRow).height = 22;
         currentRow++;
 
-        // Empleados del grupo
+        // 2. Escribir la cabecera completa con los días (Sáb, Lun, Mar...) para este bloque
+        escribirCabeceraTabla(currentRow);
+        currentRow += 2; // Ocupa 2 filas (la 2 y la 3 del bloque de cabecera)
+
+        // 3. Empleados del grupo
         grupo.empleados.forEach((emp) => {
           const baseNum = Number(emp.salariobase || emp.salarioBase) || 0; 
           const salarioDiario = baseNum / 6; 
@@ -432,7 +439,7 @@ function ListaEmpleados() {
           currentRow++;
         });
 
-        // SALTO EXACTO DE 7 FILAS VACÍAS ENTRE CADA GRUPO (Excepto en el último grupo)
+        // 4. SALTO EXACTO DE 7 FILAS VACÍAS ENTRE CADA GRUPO
         if (idxGrupo < gruposParaExportar.length - 1) {
             currentRow += 7; 
         }
