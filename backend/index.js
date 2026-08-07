@@ -241,10 +241,9 @@ app.post('/empleados', verificarToken, async (req, res) => {
         // LÓGICA DE CUADRILLAS (Candados de seguridad)
         let cuadrillaFinal = cuadrilla || 'Sin Cuadrilla';
         if (puesto !== 'Caporal' && puesto !== 'Cuadrillero') {
-            cuadrillaFinal = 'Sin Cuadrilla'; // Si es Staff, se quita la cuadrilla obligatoriamente
+            cuadrillaFinal = 'Sin Cuadrilla'; 
         }
 
-        // Si es Caporal, verificar que esa cuadrilla no tenga ya uno asignado
         if (puesto === 'Caporal' && cuadrillaFinal !== 'Sin Cuadrilla') {
             const existeCaporal = await pool.query("SELECT COUNT(*) FROM Empleado WHERE puesto = 'Caporal' AND cuadrilla = $1 AND estado != 'Vetado'", [cuadrillaFinal]);
             if (parseInt(existeCaporal.rows[0].count) > 0) {
@@ -266,7 +265,7 @@ app.post('/empleados', verificarToken, async (req, res) => {
         );
         await pool.query('COMMIT'); 
 
-        await registrarAuditoria(req.usuario.username, 'CREAR_EMPLEADO', `Registró al empleado ${nombre} ${apellido} (C.I: ${dni}) en el puesto de ${puesto}.`);
+        await registrarAuditoria(req.usuario.username, 'CREAR_EMPLEADO', `Registró al empleado ${nombre} ${apellido} (C.I: ${dni}) en el puesto de ${puesto} (${cuadrillaFinal}).`);
         res.status(201).json({ mensaje: 'Empleado agregado exitosamente', empleado: empleadoResult.rows[0] });
 
     } catch (error) {
@@ -304,7 +303,6 @@ app.get('/empleados', verificarToken, async (req, res) => {
         let countQuery = 'SELECT COUNT(*) FROM Empleado e';
         let queryParams = [];
 
-        // EL ORDEN PERFECTO DE CUADRILLAS APLICADO AQUÍ -> ORDER BY e.cuadrilla ASC, p.apellido ASC
         if (estado !== 'Todos') {
             query += ` WHERE e.estado = $1 ORDER BY e.cuadrilla ASC, p.apellido ASC`;
             countQuery += ` WHERE e.estado = $1`;
@@ -352,7 +350,7 @@ app.put('/empleados/:id', verificarToken, async (req, res) => {
     const { personaID, personaid, nombre, apellido, dni, numeroTelf, puesto, salarioBase, cuentaBancaria, estado, motivoSancion, diasSuspension, direccion, cuadrilla } = req.body;
     const idPersonaReal = personaid || personaID;
     
-    const regexTelf = /^(0212|0414|0416|0426|0424|0422)[0-9]{7}$/;
+    const regexTelf = /^(0212|0414|0416|0412|0426|0424|0422)[0-9]{7}$/;
     if (!numeroTelf || !regexTelf.test(numeroTelf)) {
         return res.status(400).json({ error: 'Número de teléfono inválido.' });
     }
@@ -365,14 +363,12 @@ app.put('/empleados/:id', verificarToken, async (req, res) => {
             }
         }
 
-        // LÓGICA DE CUADRILLAS AL EDITAR
         let cuadrillaFinal = cuadrilla || 'Sin Cuadrilla';
         if (puesto !== 'Caporal' && puesto !== 'Cuadrillero') {
             cuadrillaFinal = 'Sin Cuadrilla';
         }
 
         if (puesto === 'Caporal' && cuadrillaFinal !== 'Sin Cuadrilla') {
-            // Buscamos si hay un Caporal en esa cuadrilla que NO sea el empleado que estamos editando
             const existeCaporal = await pool.query("SELECT COUNT(*) FROM Empleado WHERE puesto = 'Caporal' AND cuadrilla = $1 AND empleadoID != $2 AND estado != 'Vetado'", [cuadrillaFinal, id]);
             if (parseInt(existeCaporal.rows[0].count) > 0) {
                 return res.status(400).json({ error: `La ${cuadrillaFinal} ya tiene un Caporal asignado.` });
@@ -399,7 +395,14 @@ app.put('/empleados/:id', verificarToken, async (req, res) => {
         }
 
         await pool.query('COMMIT');
-        await registrarAuditoria(req.usuario.username, 'EDITAR_EMPLEADO', `Modificó los datos del empleado C.I: ${dni} (Estado: ${estado})`);
+        
+        // LOG DETALLADO: Muestra claramente el nuevo puesto, cuadrilla y estado modificado
+        await registrarAuditoria(
+            req.usuario.username, 
+            'EDITAR_EMPLEADO', 
+            `Modificó al empleado C.I: ${dni} -> Nuevo Puesto: ${puesto}, Cuadrilla: ${cuadrillaFinal}, Estado: ${estado}`
+        );
+
         res.json({ mensaje: 'Datos actualizados con éxito' });
     } catch (error) {
         await pool.query('ROLLBACK');
@@ -526,7 +529,6 @@ app.get('/asistencia', verificarToken, async (req, res) => {
     const { fecha } = req.query;
     const fechaConsulta = fecha || new Date().toISOString().split('T')[0];
     try {
-        // ASISTENCIA AHORA TAMBIÉN ORDENADA POR CUADRILLA
         const query = `
             SELECT e.empleadoID as "empleadoID", e.empleadoID as empleadoid, p.nombre, p.apellido, p.dni, e.puesto, e.estado AS estado_empleado, e.cuadrilla,
                    a.estado AS asistencia_estado,
@@ -572,7 +574,6 @@ app.get('/dashboard/stats', verificarToken, async (req, res) => {
         const sancionadosRes = await pool.query("SELECT COUNT(*) FROM Empleado WHERE estado = 'Sancionado'");
         const totalRes = await pool.query("SELECT COUNT(*) FROM Empleado");
         
-        // CONTADOR DE CUADRILLAS PARA EL DASHBOARD
         const cuadrillasRes = await pool.query("SELECT COUNT(DISTINCT cuadrilla) FROM Empleado WHERE estado = 'Activo' AND cuadrilla != 'Sin Cuadrilla'");
 
         const empleadosAsistencia = await pool.query(`
