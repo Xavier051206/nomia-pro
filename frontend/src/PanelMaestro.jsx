@@ -7,6 +7,9 @@ function PanelMaestro() {
   const [aprobados, setAprobados] = useState([]);
   const [totalAprobados, setTotalAprobados] = useState(0);
   const [logs, setLogs] = useState([]);
+  
+  // Nuevo estado para el botón de cierre manual
+  const [cargandoCierre, setCargandoCierre] = useState(false);
 
   const backendUrl = 'https://nomia-pro-production.up.railway.app';
 
@@ -64,6 +67,32 @@ function PanelMaestro() {
     }
   };
 
+  // NUEVA FUNCIÓN: Forzar Cierre Semanal Manual
+  const forzarCierreSemanal = async () => {
+    const confirmar = window.confirm("⚠️ ALERTA DE SISTEMA\n\n¿Estás seguro de que deseas cerrar la semana laboral AHORA?\n\nEsto enviará el reporte a tu correo, calculará la nómina y limpiará la base de datos.");
+    
+    if (!confirmar) return;
+
+    setCargandoCierre(true);
+    try {
+      const token = localStorage.getItem('token');
+      const respuesta = await axios.post(`${backendUrl}/api/nomina/forzar-cierre`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      alert(`✅ ÉXITO: ${respuesta.data.mensaje || 'Corte realizado y correos enviados.'}`);
+      
+      // Actualizar los logs si el dueño está en esa pestaña para que vea el movimiento
+      if (pestañaActiva === 'logs') {
+        cargarDatos();
+      }
+    } catch (error) {
+      console.error('Error en el cierre manual:', error);
+      alert("❌ Ocurrió un error al intentar hacer el cierre. Revisa que el backend esté respondiendo.");
+    } finally {
+      setCargandoCierre(false);
+    }
+  };
+
   const formatearFecha = (cadenaFecha) => {
     const opciones = { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true };
     return new Date(cadenaFecha).toLocaleString('es-VE', opciones);
@@ -79,16 +108,38 @@ function PanelMaestro() {
           <p className="text-sm text-slate-500">Centro de control, seguridad y auditoría.</p>
         </div>
         
-        <div 
-          onClick={() => setPestañaActiva('aprobados')}
-          className="bg-white p-4 rounded-xl shadow border-l-4 border-blue-500 flex items-center gap-4 w-full md:min-w-[250px] md:w-auto cursor-pointer hover:bg-blue-50 transition transform hover:scale-105"
-          title="Clic para ver la lista de usuarios activos"
-        >
-          <div className="bg-blue-100 p-3 rounded-full text-2xl">👥</div>
-          <div>
-            <p className="text-xs text-blue-600 font-bold uppercase tracking-wider">Ver Activos</p>
-            <p className="text-2xl sm:text-3xl font-black text-slate-800">{totalAprobados} <span className="text-xs sm:text-sm text-slate-500 font-normal">permitidos</span></p>
+        {/* Contenedor de las tarjetas superiores */}
+        <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
+          
+          {/* BOTÓN NUEVO: FORZAR CIERRE SEMANAL */}
+          <button 
+            onClick={forzarCierreSemanal}
+            disabled={cargandoCierre}
+            className={`bg-white p-4 rounded-xl shadow border-l-4 border-red-500 flex items-center gap-4 w-full md:min-w-[220px] md:w-auto text-left transition transform hover:scale-105 ${cargandoCierre ? 'opacity-70 cursor-wait' : 'cursor-pointer hover:bg-red-50'}`}
+            title="Forzar el cierre de nómina, limpiar asistencias y enviar correo en Excel"
+          >
+            <div className="bg-red-100 p-3 rounded-full text-2xl">🚨</div>
+            <div>
+              <p className="text-xs text-red-600 font-bold uppercase tracking-wider">Cierre Semanal</p>
+              <p className="text-lg sm:text-xl font-black text-slate-800">
+                {cargandoCierre ? 'Procesando...' : 'Forzar Manual'}
+              </p>
+            </div>
+          </button>
+
+          {/* TARJETA ORIGINAL: USUARIOS ACTIVOS */}
+          <div 
+            onClick={() => setPestañaActiva('aprobados')}
+            className="bg-white p-4 rounded-xl shadow border-l-4 border-blue-500 flex items-center gap-4 w-full md:min-w-[220px] md:w-auto cursor-pointer hover:bg-blue-50 transition transform hover:scale-105"
+            title="Clic para ver la lista de usuarios activos"
+          >
+            <div className="bg-blue-100 p-3 rounded-full text-2xl">👥</div>
+            <div>
+              <p className="text-xs text-blue-600 font-bold uppercase tracking-wider">Ver Activos</p>
+              <p className="text-2xl sm:text-3xl font-black text-slate-800">{totalAprobados} <span className="text-xs sm:text-sm text-slate-500 font-normal">permitidos</span></p>
+            </div>
           </div>
+
         </div>
       </div>
 

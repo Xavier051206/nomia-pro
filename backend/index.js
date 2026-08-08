@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cron = require('node-cron');
 const nodemailer = require('nodemailer');
-const xlsx = require('xlsx'); // NUEVO: Librería para generar el Excel
+const xlsx = require('xlsx'); 
 require('dotenv').config();
 
 const app = express();
@@ -15,7 +15,6 @@ app.use(express.json());
 
 const pool = require('./db');
 
-// Función auxiliar para obtener la hora exacta de Venezuela (UTC-4)
 const getHoraVenezuela = () => {
     const now = new Date();
     return new Date(now.getTime() - (4 * 60 * 60 * 1000));
@@ -861,32 +860,36 @@ const enviarCorreoReportes = async (datosReporte) => {
     }
 };
 
-app.post('/corte-semanal/ejecutar', verificarToken, async (req, res) => {
+// NUEVA RUTA PARA EL BOTÓN ROJO DEL PANEL MAESTRO (Renombrada de /corte-semanal/ejecutar)
+app.post('/api/nomina/forzar-cierre', verificarToken, async (req, res) => {
     try {
         const resultadoReporte = await ejecutarCorteSemanal(req.usuario.username);
         
         await enviarCorreoReportes(resultadoReporte);
 
         res.json({ 
-            mensaje: '¡Corte realizado y correo enviado con éxito! Se han consolidado todos los registros, logs, suspensiones y asistencias.',
+            mensaje: '¡Corte realizado y correo enviado con éxito! Se han consolidado todos los registros y vaciado las asistencias.',
             datos: resultadoReporte.resumen_corte
         });
     } catch (error) {
-        console.error("Error al ejecutar corte semanal:", error);
+        console.error("Error al ejecutar corte semanal manual:", error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// CRON JOB AUTOMÁTICO (VIERNES A LAS 11:59 PM VET -> 03:59 UTC SÁBADO)
-cron.schedule('59 03 * * 6', async () => {
-    console.log('⏰ Iniciando corte semanal automático del viernes a las 11:59 PM VET...');
+// CRON JOB AUTOMÁTICO (VIERNES A LAS 11:59 PM VET -> CON ZONA HORARIA FORZADA)
+cron.schedule('59 23 * * 5', async () => {
+    console.log('⏰ Iniciando corte semanal automático (Hora CCS)...');
     try {
         const resultadoReporte = await ejecutarCorteSemanal('Cron Automático 11:59PM');
         await enviarCorreoReportes(resultadoReporte);
-        console.log('✅ Corte semanal automático, respaldo y correo en Excel ejecutados con éxito.');
+        console.log('✅ Corte semanal automático, respaldo y correo ejecutados con éxito.');
     } catch (error) {
-        console.error('❌ Error en el corte semanal automático:', error);
+        console.error('❌ Error en el corte automático:', error);
     }
+}, {
+    scheduled: true,
+    timezone: "America/Caracas" // ¡ESTO ES LA MAGIA QUE EVITA ERRORES DE HORA!
 });
 
 // =========================================================
