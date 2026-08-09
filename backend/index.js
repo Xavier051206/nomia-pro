@@ -4,8 +4,12 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cron = require('node-cron');
 const nodemailer = require('nodemailer');
-const xlsx = require('xlsx'); 
+const xlsx = require('xlsx'); // NUEVO: Librería para generar el Excel
 require('dotenv').config();
+
+// FUERZA LA RED A IPv4 PARA EVITAR BLOQUEOS EN RAILWAY
+const dns = require('dns');
+dns.setDefaultResultOrder('ipv4first');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -15,6 +19,7 @@ app.use(express.json());
 
 const pool = require('./db');
 
+// Función auxiliar para obtener la hora exacta de Venezuela (UTC-4)
 const getHoraVenezuela = () => {
     const now = new Date();
     return new Date(now.getTime() - (4 * 60 * 60 * 1000));
@@ -813,6 +818,7 @@ const enviarCorreoReportes = async (datosReporte) => {
             host: 'smtp.gmail.com',
             port: 465,
             secure: true,
+            connectionTimeout: 10000, 
             auth: {
                 user: process.env.EMAIL_USER, 
                 pass: process.env.EMAIL_PASS  
@@ -862,10 +868,13 @@ const enviarCorreoReportes = async (datosReporte) => {
         console.log('📧 Correo con el reporte semanal en EXCEL enviado con éxito.');
     } catch (error) {
         console.error('❌ Error enviando correo automático:', error);
+        throw error; // Propagamos el error para que la ruta manual (/forzar-cierre) avise en pantalla si falla
     }
 };
 
-// NUEVA RUTA PARA EL BOTÓN ROJO DEL PANEL MAESTRO (Renombrada de /corte-semanal/ejecutar)
+// =========================================================
+// RUTA MANUAL DEL BOTÓN ROJO (CON CONTROL DE ERRORES REAL)
+// =========================================================
 app.post('/api/nomina/forzar-cierre', verificarToken, async (req, res) => {
     try {
         const resultadoReporte = await ejecutarCorteSemanal(req.usuario.username);
@@ -878,7 +887,7 @@ app.post('/api/nomina/forzar-cierre', verificarToken, async (req, res) => {
         });
     } catch (error) {
         console.error("Error al ejecutar corte semanal manual:", error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'El proceso falló: ' + error.message });
     }
 });
 
