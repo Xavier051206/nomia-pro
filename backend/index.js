@@ -3,11 +3,15 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs'); 
 const jwt = require('jsonwebtoken');
 const cron = require('node-cron');
-const nodemailer = require('nodemailer');
-const xlsx = require('xlsx'); // NUEVO: Librería para generar el Excel
+const nodemailer = require('nodemailer'); 
+const { Resend } = require('resend'); 
+const ExcelJS = require('exceljs'); // NUEVO: Librería profesional para pintar el Excel
 require('dotenv').config();
 
-// FUERZA LA RED A IPv4 PARA EVITAR BLOQUEOS EN RAILWAY
+// INICIALIZAR RESEND CON LA VARIABLE DE ENTORNO SEGURA
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+// FUERZA LA RED A IPv4
 const dns = require('dns');
 dns.setDefaultResultOrder('ipv4first');
 
@@ -19,7 +23,6 @@ app.use(express.json());
 
 const pool = require('./db');
 
-// Función auxiliar para obtener la hora exacta de Venezuela (UTC-4)
 const getHoraVenezuela = () => {
     const now = new Date();
     return new Date(now.getTime() - (4 * 60 * 60 * 1000));
@@ -674,7 +677,7 @@ app.get('/corte-semanal/verificar', verificarToken, async (req, res) => {
 });
 
 // =========================================================
-// 11. CORREO Y REPORTE COMPLETO EN EXCEL
+// 11. CORREO Y REPORTE COMPLETO EN EXCEL (CON EXCELJS - DISEÑO HERMOSO)
 // =========================================================
 const ejecutarCorteSemanal = async (usuario = 'Sistema Automático') => {
     const client = await pool.connect();
@@ -688,15 +691,14 @@ const ejecutarCorteSemanal = async (usuario = 'Sistema Automático') => {
         const totalSancionados = parseInt(sancionadosRes.rows[0].count) || 0;
         const fechaHoy = new Date().toISOString().split('T')[0];
 
-        // 1. Buscamos la información cruda de empleados (incluyendo el día extraído para la matemática)
+        // Añadí numeroTelf y cuentaBancaria al query SQL para que exceljs pueda dibujarlos
         const empQuery = await client.query(`
-            SELECT e.empleadoID, p.nombre, p.apellido, p.dni, e.puesto, e.estado, e.cuadrilla, e.salarioBase,
+            SELECT e.empleadoID, p.nombre, p.apellido, p.dni, p.numeroTelf, e.puesto, e.estado, e.cuadrilla, e.salarioBase, e.cuentaBancaria,
             (SELECT json_agg(json_build_object('fecha', a.fecha, 'estado', a.estado, 'observacion', a.observacion, 'dia', EXTRACT(ISODOW FROM a.fecha))) 
              FROM Asistencia a WHERE a.empleadoID = e.empleadoID) as asistencias
             FROM Empleado e JOIN Persona p ON e.personaid = p.personalid
         `);
 
-        // 2. Realizar los cálculos idénticos al Dashboard
         let totalNomina = 0;
         let diasTrabajados = 0;
         let diasAusentes = 0;
@@ -705,32 +707,30 @@ const ejecutarCorteSemanal = async (usuario = 'Sistema Automático') => {
             const salarioBaseNum = Number(emp.salariobase || emp.salarioBase) || 0;
             const salarioDiario = salarioBaseNum / 6; 
             let ausencias = 0;
+            let diasTrabajadosInd = 0;
             const asistenciasArray = emp.asistencias || [];
 
             asistenciasArray.forEach(a => {
-                if (a.dia === 7) return; // Omitir domingos
+                if (a.dia === 7) return; 
 
                 if (a.estado === 'Ausente') {
                     ausencias += 1;
                     diasAusentes += 1; 
                 } else if (a.estado === 'Presente' || a.estado === 'Justificado') {
                     diasTrabajados += 1; 
+                    diasTrabajadosInd += 1;
                 }
             });
 
             const pagoFinal = salarioBaseNum - (ausencias * salarioDiario);
             const pagoReal = pagoFinal < 0 ? 0 : pagoFinal;
             
-            // Solo sumamos a la nómina general si el empleado está activo
             if (emp.estado === 'Activo') {
                 totalNomina += pagoReal;
             }
 
-            // Aplanamos las asistencias para que se vean bien en una celda de Excel
-            const detalleDias = asistenciasArray.map(a => `${a.fecha} (${a.estado})`).join(' | ');
-
-            // Retornamos el perfil de la persona listo con su pago semanal y formato para Excel
             return {
+                // Campos base (no romper lógica antigua)
                 "ID Empleado": emp.empleadoid || emp.empleadoID,
                 "Nombre": emp.nombre,
                 "Apellido": emp.apellido,
@@ -741,11 +741,24 @@ const ejecutarCorteSemanal = async (usuario = 'Sistema Automático') => {
                 "Salario Base ($)": salarioBaseNum.toFixed(2),
                 "Faltas Semanales": ausencias,
                 "PAGO SEMANAL A RECIBIR ($)": pagoReal.toFixed(2),
-                "Detalle de Asistencia Diaria": detalleDias
+                
+                // Campos crudos para el diseño avanzado de ExcelJS
+                empleadoid: emp.empleadoid || emp.empleadoID,
+                nombre: emp.nombre,
+                apellido: emp.apellido,
+                dni: emp.dni,
+                numerotelf: emp.numerotelf || emp.numeroTelf,
+                puesto: emp.puesto,
+                cuadrilla: emp.cuadrilla,
+                estado: emp.estado,
+                salarioBase: salarioBaseNum,
+                cuentabancaria: emp.cuentabancaria || emp.cuentaBancaria,
+                asistencia_semana: asistenciasArray,
+                diasTrabajados: diasTrabajadosInd,
+                pagoFinal: pagoReal
             };
         });
 
-        // Calculamos el porcentaje real
         const totalDiasRegistrados = diasTrabajados + diasAusentes;
         let porcentajeAsistencia = 100; 
         if (totalDiasRegistrados > 0) {
@@ -754,14 +767,12 @@ const ejecutarCorteSemanal = async (usuario = 'Sistema Automático') => {
             porcentajeAsistencia = 0; 
         }
 
-        // 3. Ahora sí, insertamos en CorteSemanal con los números ya calculados
         const insertRes = await client.query(
             `INSERT INTO CorteSemanal (fecha_inicio, fecha_fin, total_activos, total_sancionados, porcentaje_asistencia, detalles) 
              VALUES ($1, $1, $2, $3, $4, $5) RETURNING *`,
             [fechaHoy, totalActivos, totalSancionados, porcentajeAsistencia.toFixed(2), 'Corte semanal y respaldo general por ' + usuario]
         );
 
-        // 4. Sanciones activas o recientes
         const sancQuery = await client.query(`
             SELECT s.sancionID as "ID Sancion", p.nombre as "Nombre", p.apellido as "Apellido", s.fecha as "Fecha", s.motivo as "Motivo", s.dias_suspension as "Dias Suspendido"
             FROM Sancion s 
@@ -770,14 +781,12 @@ const ejecutarCorteSemanal = async (usuario = 'Sistema Automático') => {
             ORDER BY s.fecha DESC LIMIT 30
         `);
 
-        // 5. Registros de Auditoría
         const auditQuery = await client.query(`
             SELECT usuario as "Usuario", accion as "Accion", detalles as "Detalles de la Accion", fecha as "Fecha"
             FROM Auditoria 
             ORDER BY fecha DESC LIMIT 50
         `);
 
-        // 6. Reporte Final Preparado para Excel
         const reporteConsolidado = {
             resumen_corte: {
                 "Fecha de Corte": insertRes.rows[0].fecha_fin,
@@ -793,7 +802,6 @@ const ejecutarCorteSemanal = async (usuario = 'Sistema Automático') => {
         };
 
         try {
-            // LIMPIEZA AUTOMÁTICA
             await client.query('DELETE FROM Asistencia');
             await client.query('DELETE FROM Queja');
         } catch (eQ) {
@@ -814,50 +822,307 @@ const ejecutarCorteSemanal = async (usuario = 'Sistema Automático') => {
 
 const enviarCorreoReportes = async (datosReporte) => {
     try {
-        const transporter = nodemailer.createTransport({
-            host: 'smtp.gmail.com',
-            port: 465,
-            secure: true,
-            connectionTimeout: 10000, 
-            auth: {
-                user: process.env.EMAIL_USER, 
-                pass: process.env.EMAIL_PASS  
-            },
-            tls: {
-                rejectUnauthorized: false
-            }
+        const workbook = new ExcelJS.Workbook(); 
+
+        // ==========================================
+        // HOJA 1: RESUMEN DEL CORTE (DISEÑADA)
+        // ==========================================
+        const wsResumen = workbook.addWorksheet('Resumen del Corte', { views: [{ showGridLines: false }] });
+        wsResumen.columns = [
+            { header: 'Métrica', key: 'key', width: 35 },
+            { header: 'Valor', key: 'val', width: 50 }
+        ];
+        wsResumen.getRow(1).font = { bold: true, color: { argb: 'FFFFFF' } };
+        wsResumen.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '2C3E50' } };
+        
+        const resumen = datosReporte.resumen_corte;
+        Object.keys(resumen).forEach(k => {
+            const row = wsResumen.addRow({ key: k, val: resumen[k] });
+            row.eachCell(cell => cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} });
         });
 
         // ==========================================
-        // CREACIÓN DEL ARCHIVO EXCEL (.XLSX)
+        // HOJA 2: NÓMINA OFICIAL (DISEÑO EXACTO AL FRONTEND)
         // ==========================================
-        const wb = xlsx.utils.book_new(); 
+        const sheet = workbook.addWorksheet('Nómina Oficial', { views: [{ showGridLines: false }] });
 
-        // Hoja 1: Resumen
-        const wsResumen = xlsx.utils.json_to_sheet([datosReporte.resumen_corte]);
-        xlsx.utils.book_append_sheet(wb, wsResumen, "Resumen del Corte");
+        const formatearCuentaBancaria = (cuenta) => {
+            if (!cuenta) return "No registrada";
+            const limpia = String(cuenta).replace(/\D/g, '');
+            if (limpia.length !== 20) return limpia; 
+            return limpia.match(/.{1,4}/g)?.join('-') || limpia;
+        };
 
-        // Hoja 2: Nómina y Asistencias
-        const wsNomina = xlsx.utils.json_to_sheet(datosReporte.nomina_y_asistencias);
-        xlsx.utils.book_append_sheet(wb, wsNomina, "Nómina Oficial");
+        const getIconoAsistenciaExcel = (asistenciaSemana, diaBusqueda) => {
+            if (!asistenciaSemana || !Array.isArray(asistenciaSemana)) return '-';
+            const registro = asistenciaSemana.find(a => Number(a.dia) === Number(diaBusqueda));
+            if (!registro) return '-'; 
+            if (registro.estado === 'Presente') return '✓';
+            if (registro.estado === 'Ausente') return 'X';
+            if (registro.estado === 'Justificado') return 'J'; 
+            return '-';
+        };
 
-        // Hoja 3: Sanciones
-        const wsSanciones = xlsx.utils.json_to_sheet(datosReporte.sanciones_suspensiones);
-        xlsx.utils.book_append_sheet(wb, wsSanciones, "Sanciones Activas");
+        const current = getHoraVenezuela();
+        const mesActual = current.toLocaleString('es-ES', { month: 'long' }).toUpperCase();
+        const anioActual = current.getFullYear();
+        
+        // Calcular número de semana (ISO)
+        const getNumeroSemana = (d) => {
+            const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+            const dayNum = date.getUTCDay() || 7;
+            date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+            const yearStart = new Date(Date.UTC(date.getUTCFullYear(),0,1));
+            return Math.ceil((((date - yearStart) / 86400000) + 1)/7);
+        };
+        const numeroSemana = getNumeroSemana(current);
 
-        // Hoja 4: Auditoría (Logs)
-        const wsAuditoria = xlsx.utils.json_to_sheet(datosReporte.auditoria_logs);
-        xlsx.utils.book_append_sheet(wb, wsAuditoria, "Registro de Auditoría");
+        const currentDay = current.getDay(); 
+        const offsetToSaturday = currentDay === 6 ? 0 : currentDay + 1; 
+        const pastSaturday = new Date(current);
+        pastSaturday.setDate(current.getDate() - offsetToSaturday);
+        const fechasSemana = [];
+        for(let i = 0; i < 7; i++) {
+           if (i === 1) continue; 
+           const tempDate = new Date(pastSaturday);
+           tempDate.setDate(pastSaturday.getDate() + i);
+           fechasSemana.push(tempDate.getDate()); 
+        }
 
-        // Convertir el libro a formato Excel (Buffer)
-        const excelBuffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+        const headers = [
+            "#", "NOMBRES Y APELLIDOS", "CEDULA", "OCUPACION", 
+            "SABADO", "LUNES", "MARTES", "MIERCOLES", "JUEVES", "VIERNES", 
+            "TOTAL ASISTENCIAS", "% DE ASISTENCIAS", "SUELDO DIARIO $", 
+            "SUELDO TOTAL $", "SUELDO TOTAL BS", "BANCO", "TELEFONO", 
+            "CEDULA BANCARIA", "NUMERO DE CUENTA", "N° DE REFERENCIA"
+        ];
+        const colLetters = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T'];
+
+        const todosLosEmpleados = datosReporte.nomina_y_asistencias;
+        const staff = todosLosEmpleados.filter(emp => !emp.cuadrilla || emp.cuadrilla === 'Sin Cuadrilla');
+        const cuadrillas = todosLosEmpleados.filter(emp => emp.cuadrilla && emp.cuadrilla !== 'Sin Cuadrilla');
+
+        const staffPorPuesto = {};
+        staff.forEach(emp => {
+            const puesto = emp.puesto || 'Sin Puesto';
+            if (!staffPorPuesto[puesto]) staffPorPuesto[puesto] = [];
+            staffPorPuesto[puesto].push(emp);
+        });
+
+        const cuadrillasMap = {};
+        cuadrillas.forEach(emp => {
+            if (!cuadrillasMap[emp.cuadrilla]) cuadrillasMap[emp.cuadrilla] = [];
+            cuadrillasMap[emp.cuadrilla].push(emp);
+        });
+
+        Object.keys(cuadrillasMap).forEach(key => {
+            cuadrillasMap[key].sort((a, b) => {
+                if (a.puesto === 'Caporal' && b.puesto !== 'Caporal') return -1;
+                if (b.puesto === 'Caporal' && a.puesto !== 'Caporal') return 1;
+                return 0; 
+            });
+        });
+
+        const gruposParaExportar = [];
+        Object.keys(staffPorPuesto).sort().forEach(puesto => {
+            gruposParaExportar.push({ nombre: `GRUPO: ${puesto.toUpperCase()}`, empleados: staffPorPuesto[puesto] });
+        });
+        Object.keys(cuadrillasMap).sort((a, b) => {
+            const numA = parseInt(a.replace(/\D/g, '')) || 0;
+            const numB = parseInt(b.replace(/\D/g, '')) || 0;
+            return numA - numB;
+        }).forEach(cuad => {
+            gruposParaExportar.push({ nombre: cuad.toUpperCase(), empleados: cuadrillasMap[cuad] });
+        });
+
+        let currentRow = 1; 
+        let indexGlobal = 1;
+
+        gruposParaExportar.forEach((grupo, idxGrupo) => {
+            // Título amarillo
+            sheet.mergeCells(`A${currentRow}:T${currentRow}`); 
+            const titleCell = sheet.getCell(`A${currentRow}`);
+            titleCell.value = `ASISTENCIA DEL MES DE ${mesActual} ${anioActual} - SEMANA ${numeroSemana} (TASA BCV: A definir en caja)`;
+            titleCell.font = { bold: true, size: 11, name: 'Arial' };
+            titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+            titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF00' } }; 
+            sheet.getRow(currentRow).height = 25;
+            currentRow++;
+
+            // Título azul del grupo
+            sheet.mergeCells(`A${currentRow}:T${currentRow}`);
+            const cellTitle = sheet.getCell(`A${currentRow}`);
+            cellTitle.value = grupo.nombre;
+            cellTitle.font = { bold: true, size: 10, name: 'Arial', color: { argb: 'FFFFFF' } };
+            cellTitle.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '2C3E50' } };
+            cellTitle.alignment = { horizontal: 'center', vertical: 'middle' };
+            sheet.getRow(currentRow).height = 22;
+            currentRow++;
+
+            // Cabeceras de tabla
+            sheet.getRow(currentRow).height = 28;
+            sheet.getRow(currentRow + 1).height = 18;
+            headers.forEach((header, i) => {
+                const col = colLetters[i];
+                const isDayColumn = (i >= 4 && i <= 9); 
+                const cellRow2 = sheet.getCell(`${col}${currentRow}`);
+                cellRow2.value = header;
+                cellRow2.font = { bold: true, size: 8, name: 'Arial' }; 
+                cellRow2.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; 
+                
+                if (!isDayColumn) {
+                    sheet.mergeCells(`${col}${currentRow}:${col}${currentRow + 1}`);
+                    sheet.getCell(`${col}${currentRow}`).border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+                } else {
+                    cellRow2.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+                    const cellRow3 = sheet.getCell(`${col}${currentRow + 1}`);
+                    cellRow3.value = fechasSemana[i - 4]; 
+                    cellRow3.font = { bold: true, size: 9, name: 'Arial' };
+                    cellRow3.alignment = { horizontal: 'center', vertical: 'middle' };
+                    cellRow3.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+                }
+            });
+            currentRow += 2; 
+
+            let sumaTotalDolaresGrupo = 0;
+
+            grupo.empleados.forEach((emp) => {
+                sumaTotalDolaresGrupo += emp.pagoFinal;
+                const porcentajeAsistencia = (emp.diasTrabajados / 6); 
+
+                const rowValues = [
+                    indexGlobal++,
+                    `${emp.nombre || ''} ${emp.apellido || ''}`.trim().toUpperCase(),
+                    emp.dni || "",
+                    (emp.puesto || '').toUpperCase(),
+                    getIconoAsistenciaExcel(emp.asistencia_semana, 6), 
+                    getIconoAsistenciaExcel(emp.asistencia_semana, 1), 
+                    getIconoAsistenciaExcel(emp.asistencia_semana, 2), 
+                    getIconoAsistenciaExcel(emp.asistencia_semana, 3), 
+                    getIconoAsistenciaExcel(emp.asistencia_semana, 4), 
+                    getIconoAsistenciaExcel(emp.asistencia_semana, 5), 
+                    emp.diasTrabajados,
+                    porcentajeAsistencia, 
+                    emp.salarioBase / 6,       
+                    emp.pagoFinal,            
+                    "A calcular", // Como es automático, la tasa se calcula en caja
+                    emp.cuentabancaria && String(emp.cuentabancaria).length >= 4 ? String(emp.cuentabancaria).substring(0, 4) : "",
+                    emp.numerotelf || "",
+                    emp.dni || "", 
+                    formatearCuentaBancaria(emp.cuentabancaria), 
+                    "" 
+                ];
+
+                const row = sheet.getRow(currentRow);
+                row.values = rowValues;
+                row.height = 20; 
+
+                row.eachCell((cell, colNumber) => {
+                    cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+                    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+                    cell.font = { size: 9, name: 'Arial' }; 
+                    if (colNumber === 2) cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+                    if (colNumber === 12) cell.numFmt = '0%'; 
+                    if (colNumber === 13 || colNumber === 14) cell.numFmt = '#,##0.00'; 
+                });
+                currentRow++;
+            });
+
+            // Fila de Subtotal
+            sheet.mergeCells(`A${currentRow}:M${currentRow}`);
+            const subtotalLabelCell = sheet.getCell(`A${currentRow}`);
+            subtotalLabelCell.value = `TOTAL ${grupo.nombre}:`;
+            subtotalLabelCell.font = { bold: true, size: 9, name: 'Arial' };
+            subtotalLabelCell.alignment = { horizontal: 'right', vertical: 'middle' };
+            subtotalLabelCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'EAEDED' } };
+
+            const subtotalDolaresCell = sheet.getCell(`N${currentRow}`);
+            subtotalDolaresCell.value = sumaTotalDolaresGrupo;
+            subtotalDolaresCell.font = { bold: true, size: 9, name: 'Arial' };
+            subtotalDolaresCell.numFmt = '#,##0.00';
+            subtotalDolaresCell.alignment = { horizontal: 'center', vertical: 'middle' };
+            subtotalDolaresCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'EAEDED' } };
+
+            const subtotalBolivaresCell = sheet.getCell(`O${currentRow}`);
+            subtotalBolivaresCell.value = "A calcular";
+            subtotalBolivaresCell.font = { bold: true, size: 9, name: 'Arial' };
+            subtotalBolivaresCell.alignment = { horizontal: 'center', vertical: 'middle' };
+            subtotalBolivaresCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'EAEDED' } };
+
+            for (let colIdx = 1; colIdx <= 20; colIdx++) {
+                const colLetter = colLetters[colIdx - 1];
+                sheet.getCell(`${colLetter}${currentRow}`).border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+            }
+            sheet.getRow(currentRow).height = 22;
+            currentRow++;
+
+            if (idxGrupo < gruposParaExportar.length - 1) {
+                currentRow += 2; 
+            }
+        });
+
+        // Ajustar anchos de las columnas
+        sheet.getColumn('A').width = 4;   
+        sheet.getColumn('B').width = 24;  
+        sheet.getColumn('C').width = 11;  
+        sheet.getColumn('D').width = 13;
+        for (let i=5; i<=10; i++) sheet.getColumn(i).width = 6.5; 
+        sheet.getColumn('K').width = 9;   
+        sheet.getColumn('L').width = 8;   
+        sheet.getColumn('M').width = 10;  
+        sheet.getColumn('N').width = 10;  
+        sheet.getColumn('O').width = 12;  
+        sheet.getColumn('P').width = 6;   
+        sheet.getColumn('Q').width = 13;  
+        sheet.getColumn('R').width = 11;  
+        sheet.getColumn('S').width = 23;  
+        sheet.getColumn('T').width = 10;  
+
         // ==========================================
+        // HOJA 3: SANCIONES ACTIVAS (DISEÑADA)
+        // ==========================================
+        const wsSanciones = workbook.addWorksheet("Sanciones Activas");
+        wsSanciones.columns = [
+            { header: 'ID Sancion', key: 'ID Sancion', width: 15 },
+            { header: 'Nombre', key: 'Nombre', width: 20 },
+            { header: 'Apellido', key: 'Apellido', width: 20 },
+            { header: 'Fecha', key: 'Fecha', width: 15 },
+            { header: 'Motivo', key: 'Motivo', width: 40 },
+            { header: 'Dias Suspendido', key: 'Dias Suspendido', width: 15 }
+        ];
+        wsSanciones.getRow(1).font = { bold: true, color: { argb: 'FFFFFF' } };
+        wsSanciones.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '2C3E50' } };
+        datosReporte.sanciones_suspensiones.forEach(s => {
+            const r = wsSanciones.addRow(s);
+            r.eachCell(c => c.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} });
+        });
 
-        await transporter.sendMail({
-            from: '"Sistema NóminaPro" <' + process.env.EMAIL_USER + '>',
-            to: process.env.EMAIL_TO || process.env.EMAIL_USER,
+        // ==========================================
+        // HOJA 4: REGISTRO DE AUDITORÍA (DISEÑADA)
+        // ==========================================
+        const wsAuditoria = workbook.addWorksheet("Registro de Auditoría");
+        wsAuditoria.columns = [
+            { header: 'Usuario', key: 'Usuario', width: 15 },
+            { header: 'Accion', key: 'Accion', width: 25 },
+            { header: 'Detalles de la Accion', key: 'Detalles de la Accion', width: 60 },
+            { header: 'Fecha', key: 'Fecha', width: 25 }
+        ];
+        wsAuditoria.getRow(1).font = { bold: true, color: { argb: 'FFFFFF' } };
+        wsAuditoria.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '2C3E50' } };
+        datosReporte.auditoria_logs.forEach(a => {
+            const r = wsAuditoria.addRow(a);
+            r.eachCell(c => c.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} });
+        });
+
+        // GENERAR BUFFER DEL EXCEL HERMOSO
+        const excelBuffer = await workbook.xlsx.writeBuffer();
+
+        // Enviar correo utilizando Resend 
+        const { data, error } = await resend.emails.send({
+            from: 'onboarding@resend.dev',
+            to: 'sjglysluismar3@gmail.com',
             subject: '📊 Reporte y Corte Semanal Consolidado - NóminaPro',
-            text: 'Hola. Adjunto encontrarás el reporte consolidado del corte semanal en formato Excel. Este archivo incluye todos los registros de empleados, cálculo total de la nómina en dólares, asistencias, faltas justificadas, suspensiones activas y la auditoría (logs) completa.',
+            html: '<p>Hola. Adjunto encontrarás el reporte consolidado del corte semanal en formato Excel. Este archivo incluye todos los registros de empleados, cálculo total de la nómina en dólares, asistencias, faltas justificadas, suspensiones activas y la auditoría completa.</p>',
             attachments: [
                 {
                     filename: `Nomina_Oficial_Semanal_${new Date().toISOString().split('T')[0]}.xlsx`,
@@ -865,16 +1130,20 @@ const enviarCorreoReportes = async (datosReporte) => {
                 }
             ]
         });
-        console.log('📧 Correo con el reporte semanal en EXCEL enviado con éxito.');
+
+        if (error) {
+            console.error('❌ Error enviando correo con Resend:', error);
+            throw new Error(error.message);
+        }
+
+        console.log('📧 Correo enviado con éxito mediante Resend:', data);
     } catch (error) {
-        console.error('❌ Error enviando correo automático:', error);
-        throw error; // Propagamos el error para que la ruta manual (/forzar-cierre) avise en pantalla si falla
+        console.error('❌ Error general al crear o enviar el Excel:', error);
+        throw error;
     }
 };
 
-// =========================================================
-// RUTA MANUAL DEL BOTÓN ROJO (CON CONTROL DE ERRORES REAL)
-// =========================================================
+// RUTA DEL BOTÓN ROJO (AHORA TE DIRÁ EL ERROR REAL SI EL CORREO FALLA)
 app.post('/api/nomina/forzar-cierre', verificarToken, async (req, res) => {
     try {
         const resultadoReporte = await ejecutarCorteSemanal(req.usuario.username);
@@ -882,16 +1151,15 @@ app.post('/api/nomina/forzar-cierre', verificarToken, async (req, res) => {
         await enviarCorreoReportes(resultadoReporte);
 
         res.json({ 
-            mensaje: '¡Corte realizado y correo enviado con éxito! Se han consolidado todos los registros y vaciado las asistencias.',
+            mensaje: '¡Corte realizado y correo enviado con éxito!',
             datos: resultadoReporte.resumen_corte
         });
     } catch (error) {
-        console.error("Error al ejecutar corte semanal manual:", error);
-        res.status(500).json({ error: 'El proceso falló: ' + error.message });
+        console.error("Error en cierre manual:", error);
+        res.status(500).json({ error: 'El corte se hizo en la BD, pero el correo falló: ' + error.message });
     }
 });
 
-// CRON JOB AUTOMÁTICO (VIERNES A LAS 11:59 PM VET -> CON ZONA HORARIA FORZADA)
 cron.schedule('59 23 * * 5', async () => {
     console.log('⏰ Iniciando corte semanal automático (Hora CCS)...');
     try {
@@ -903,7 +1171,7 @@ cron.schedule('59 23 * * 5', async () => {
     }
 }, {
     scheduled: true,
-    timezone: "America/Caracas" // ¡ESTO ES LA MAGIA QUE EVITA ERRORES DE HORA!
+    timezone: "America/Caracas"
 });
 
 // =========================================================
